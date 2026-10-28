@@ -1,0 +1,20 @@
+[
+  {
+    "guid": "6d5e2f2a-5308-427c-9e34-42892a8fe0cc",
+    "name": "Tuner",
+    "description": "Radio dial and TV surf mode for the Jellyfin web UI.",
+    "overview": "Live radio, Jamendo, free TV and antenna channels, rotating home rows, seasonal tiles.",
+    "owner": "coltonfretz",
+    "category": "General",
+    "versions": [
+      {
+        "version": "0.7.0.0",
+        "changelog": "First public release: radio, Jamendo, Surf TV, rotating home rows, seasonal tiles",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v0.7.0.0/tuner_0.7.0.0.zip",
+        "checksum": "8476c1468c7d4bcdbb08aa97e1dee105",
+        "timestamp": "2026-10-28T11:32:08Z"
+      }
+    ]
+  }
+]
