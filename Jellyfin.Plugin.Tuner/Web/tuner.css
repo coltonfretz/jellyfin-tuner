@@ -1,0 +1,187 @@
+/* Tuner plugin styles. Everything is scoped under .tnr-* so nothing leaks into
+   jellyfin-web. Colors are fixed dark values because the page sits on Jellyfin's
+   dark theme; genre colors come from the station list at runtime. */
+.tnr-page { --tnr-bg: #101418; --tnr-panel: #171c22; --tnr-raise: #1f262e; --tnr-line: #2c343e;
+  --tnr-text: #e8eaed; --tnr-dim: #9aa3ad; --tnr-faint: #6b747e; --tnr-accent: #E24B4A; }
+.tnr-wrap { max-width: 1100px; margin: 0 auto; padding: 1.5em 1.2em 7em; color: var(--tnr-text); }
+.tnr-head { display: flex; align-items: center; gap: .8em; flex-wrap: wrap; margin-bottom: 1em; }
+.tnr-head h1 { margin: 0; font-size: 1.6em; font-weight: 500; flex: 1; }
+.tnr-search { background: var(--tnr-panel); border: 1px solid var(--tnr-line); color: var(--tnr-text);
+  border-radius: 8px; padding: .55em .8em; min-width: 14em; font: inherit; }
+.tnr-btn { background: var(--tnr-raise); border: 1px solid var(--tnr-line); color: var(--tnr-text);
+  border-radius: 8px; height: 2.4em; min-width: 2.4em; padding: 0 .8em; cursor: pointer; font: inherit;
+  display: inline-flex; align-items: center; justify-content: center; gap: .4em; }
+.tnr-btn:hover { background: #29313a; }
+.tnr-btn[disabled] { opacity: .45; cursor: default; }
+.tnr-btn .material-icons { font-size: 1.3em; }
+.tnr-modes { display: flex; gap: .5em; margin-bottom: .8em; }
+.tnr-mode { background: transparent; border: 1px solid var(--tnr-line); color: var(--tnr-dim);
+  border-radius: 999px; padding: .35em 1em; cursor: pointer; font: inherit; }
+.tnr-mode.on { background: var(--tnr-text); color: #111; border-color: transparent; }
+
+/* The tuning scale: one tick per genre, the needle glides to the station. */
+.tnr-scale { position: relative; height: 3.4em; background: var(--tnr-panel); border-radius: 10px;
+  margin-bottom: .9em; overflow: hidden; cursor: pointer; }
+.tnr-tick { position: absolute; top: .45em; width: 1px; height: .9em; background: #4a535d; }
+.tnr-tick.minor { height: .45em; background: #2f3740; }
+.tnr-ticklabel { position: absolute; top: 1.6em; transform: translateX(-50%); font-size: .72em;
+  color: var(--tnr-faint); font-family: monospace; white-space: nowrap; }
+.tnr-needle { position: absolute; top: .3em; bottom: .3em; width: 2px; background: var(--tnr-accent);
+  transition: left .45s cubic-bezier(.3, 1.4, .5, 1); }
+
+.tnr-genres { display: flex; gap: .5em; justify-content: center; margin-bottom: 1.2em; flex-wrap: nowrap; overflow: hidden; }
+.tnr-genre { border: 0; border-radius: 999px; padding: .45em 1em; color: #fff; cursor: pointer; font: inherit;
+  opacity: .45; transition: opacity .2s, transform .2s; white-space: nowrap; }
+.tnr-genre.on { opacity: 1; transform: scale(1.06); }
+
+.tnr-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 1.2em; }
+.tnr-list { display: flex; flex-direction: column; gap: 2px; }
+.tnr-row { display: flex; align-items: center; gap: .8em; padding: .45em .6em; border-radius: 8px; cursor: pointer; }
+.tnr-row:hover { background: var(--tnr-panel); }
+.tnr-row.on { background: var(--tnr-raise); }
+.tnr-row-text { flex: 1; min-width: 0; }
+.tnr-row-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tnr-row-sub { font-size: .8em; color: var(--tnr-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tnr-tile { border-radius: 6px; flex-shrink: 0; background-size: cover; background-position: center;
+  display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 500; }
+.tnr-row .tnr-tile { width: 2.6em; height: 2.6em; font-size: .8em; }
+.tnr-row .material-icons { font-size: 1.1em; }
+.tnr-star { color: #EF9F27; }
+.tnr-live { color: #5DCAA5; }
+
+.tnr-card { background: var(--tnr-panel); border-radius: 14px; padding: 1.4em; display: flex; flex-direction: column;
+  align-items: center; text-align: center; align-self: start; position: sticky; top: 5em; }
+.tnr-card .tnr-tile { width: 11em; height: 11em; font-size: 1em; border-radius: 10px; transition: background-color .3s; }
+.tnr-card-name { margin: .9em 0 .15em; font-size: 1.25em; font-weight: 500; }
+.tnr-card-sub { margin: 0; font-size: .85em; color: var(--tnr-faint); }
+.tnr-np { margin: 1em 0; padding: .7em 1em; background: var(--tnr-bg); border-radius: 8px; width: 100%; box-sizing: border-box; min-height: 3.2em; }
+.tnr-np-label { margin: 0; font-size: .75em; color: var(--tnr-faint); }
+.tnr-np-title { margin: .2em 0 0; transition: opacity .3s; overflow-wrap: anywhere; }
+.tnr-controls { display: flex; gap: .5em; flex-wrap: wrap; justify-content: center; }
+.tnr-hint { margin-top: 1em; font-size: .78em; color: var(--tnr-faint); }
+.tnr-empty { color: var(--tnr-dim); padding: 1em .6em; }
+
+/* Floating mini player: keeps radio controllable while browsing the rest of Jellyfin.
+   Sits above Jellyfin's own now-playing bar. */
+.tnr-mini { position: fixed; right: 1em; bottom: 6em; z-index: 1000; display: none; align-items: center; gap: .7em;
+  background: #171c22f2; border: 1px solid #2c343e; border-radius: 12px; padding: .5em .6em; color: #e8eaed;
+  max-width: min(26em, calc(100vw - 2em)); }
+.tnr-mini.show { display: flex; }
+.tnr-mini .tnr-tile { width: 2.6em; height: 2.6em; font-size: .75em; cursor: pointer; }
+.tnr-mini-text { min-width: 0; cursor: pointer; }
+.tnr-mini-name { font-size: .85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tnr-mini-title { font-size: .75em; color: #9aa3ad; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tnr-mini .tnr-btn { height: 2.1em; min-width: 2.1em; padding: 0 .4em; }
+
+.tnr-toast { position: fixed; left: 50%; bottom: 8em; transform: translateX(-50%); z-index: 1001; background: #e8eaed;
+  color: #111; border-radius: 8px; padding: .6em 1em; font-size: .9em; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.tnr-toast.show { opacity: 1; }
+
+@media (max-width: 760px) {
+  .tnr-main { grid-template-columns: minmax(0, 1fr); }
+  .tnr-card { position: static; order: -1; }
+  .tnr-card .tnr-tile { width: 8em; height: 8em; }
+  .tnr-search { min-width: 0; flex: 1 1 100%; }
+  .tnr-hint { display: none; }
+}
+
+/* Sidebar link inside Jellyfin 12's MUI drawer (newer layout). MUI's own styles are
+   generated class names we can't reuse, so this mimics a ListItemButton. */
+.tnr-nav-mui .tnr-nav-head { font-size: .875rem; line-height: 48px; padding: 0 16px; color: rgba(255, 255, 255, .7); }
+.tnr-nav-mui .tnr-nav-link { display: flex; align-items: center; gap: 32px; padding: 8px 16px; color: inherit; text-decoration: none; }
+.tnr-nav-mui .tnr-nav-link:hover { background: rgba(255, 255, 255, .08); }
+.tnr-nav-mui .material-icons { font-size: 24px; opacity: .85; }
+
+/* While one of our pages is open in Jellyfin 12's newer layout: the app bar's second
+   toolbar belongs to whatever library page was open before (Albums, Play All...), and
+   that page's tab is still highlighted, because React doesn't know we navigated. */
+body.tnr-page-active .MuiAppBar-root > .MuiToolbar-root ~ .MuiToolbar-root { display: none !important; }
+body.tnr-page-active .MuiAppBar-root .MuiStack-root > a.MuiButton-textPrimary:not(.tnr-topnav) { color: inherit !important; }
+/* Our top bar links only appear when they fit on one line (planTopNav in tuner.js);
+   keep their labels on one line and never let flexbox squeeze them. */
+.tnr-topnav, .tnr-more { white-space: nowrap; flex-shrink: 0; }
+body[data-tnr-page="radio"] .tnr-topnav[data-kind="radio"], body[data-tnr-page="radio"] .tnr-topicon[data-kind="radio"],
+body[data-tnr-page="tv"] .tnr-topnav[data-kind="tv"], body[data-tnr-page="tv"] .tnr-topicon[data-kind="tv"] {
+  color: var(--jf-palette-primary-main, #00a4dc) !important; }
+
+/* Jellyfin's backdrop art (an item page, or Jellyfin Enhanced's random-item dice) covers the
+   whole window, and nothing clears it when our page takes over, so the last movie's art sat
+   behind Radio. Hide it while ours is up; it's back as soon as the user leaves. */
+body.tnr-page-active .backdropContainer { display: none !important; }
+/* Libraries moved out of the bar to make room for ours; they're offered in "More". */
+.MuiAppBar-root a[data-tnr-tucked] { display: none !important; }
+.MuiAppBar-root .tnr-topicon[data-tnr-hidden] { display: none !important; }
+/* last resort on a narrow window (see planTopNav): the logo link keeps only its icon. The
+   icon is sized in em, so pin the span's font size before zeroing the label's. */
+.MuiAppBar-root a[data-tnr-compact] { font-size: 0 !important; min-width: 0 !important; }
+.MuiAppBar-root a[data-tnr-compact] .MuiButton-startIcon { font-size: 18px; margin: 0; }
+/* Our own "More" (only when Jellyfin isn't showing its own): Jellyfin's button classes give
+   the button its look; the arrow and the menu copy MUI's menu using Jellyfin's theme
+   variables, since MUI's generated classes for those aren't on the page to borrow. */
+.tnr-more-arrow { display: inherit; margin-left: 8px; margin-right: -4px; }
+.tnr-more-arrow > svg { width: 1em; height: 1em; font-size: 20px; fill: currentColor; }
+.tnr-more-menu { position: fixed; z-index: 1300; min-width: 200px; padding: 8px 0; border-radius: 4px;
+  background-color: var(--jf-palette-background-paper, #202020); background-image: var(--jf-overlays-8, none);
+  box-shadow: var(--jf-shadows-8, 0 8px 10px 1px rgba(0, 0, 0, .14));
+  color: var(--jf-palette-text-primary, #fff); }
+.tnr-more-item { display: flex; align-items: center; min-height: 48px; padding: 6px 16px; box-sizing: border-box;
+  color: inherit; text-decoration: none; font-size: 1rem; white-space: nowrap; }
+.tnr-more-item:hover, .tnr-more-item:focus-visible { background: var(--jf-palette-action-hover, rgba(255, 255, 255, .08)); outline: none; }
+.tnr-more-item > svg { width: 24px; height: 24px; margin-right: 12px; fill: currentColor; opacity: .7; flex-shrink: 0; }
+
+/* ---------- TV surf mode ---------- */
+.tnr-tv-main { display: grid; grid-template-columns: minmax(0, 1fr) 15em; gap: 1em; }
+.tnr-screen { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden;
+  outline: none; box-shadow: inset 0 0 0 1px #ffffff10; }
+.tnr-screen:fullscreen { border-radius: 0; aspect-ratio: auto; }
+.tnr-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.tnr-tv-status { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  color: #cfd5dc; font-size: 1.1em; pointer-events: none; text-align: center; padding: 1em; }
+.tnr-tv-status.show { display: flex; }
+.tnr-tv-digits { position: absolute; top: .6em; right: .8em; font: 500 2.2em monospace; color: #fff;
+  text-shadow: 0 0 6px #000; pointer-events: none; }
+.tnr-banner { position: absolute; left: .8em; right: .8em; bottom: .8em; display: flex; gap: .9em; align-items: center;
+  background: #0f1216e8; border-radius: 10px; padding: .7em .9em; opacity: 0; transform: translateY(.5em);
+  transition: opacity .25s, transform .25s; pointer-events: none; }
+.tnr-banner.show { opacity: 1; transform: none; }
+.tnr-banner-num { font-size: 1.9em; font-weight: 500; min-width: 2.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.tnr-banner-logo img { max-height: 2.6em; max-width: 5em; display: block; }
+.tnr-banner-logo:empty { display: none; }
+.tnr-banner-text { flex: 1; min-width: 0; }
+.tnr-banner-text p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tnr-banner-name { font-size: .8em; color: #aab1b9; }
+.tnr-banner-now { font-size: 1.1em; font-weight: 500; margin: .1em 0 .4em !important; }
+.tnr-bar { height: 3px; background: #2a3038; border-radius: 2px; }
+.tnr-bar-fill { height: 3px; border-radius: 2px; width: 0; }
+.tnr-banner-next { font-size: .78em; color: #8b939c; margin-top: .35em !important; }
+.tnr-screen-controls { position: absolute; top: .6em; left: .6em; display: flex; gap: .4em; opacity: 0; transition: opacity .25s; }
+.tnr-screen:hover .tnr-screen-controls, .tnr-screen:focus-within .tnr-screen-controls { opacity: 1; }
+.tnr-screen-controls .tnr-btn { background: #0f1216cc; }
+
+.tnr-side { display: flex; flex-direction: column; gap: .5em; min-width: 0; }
+.tnr-guide { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.tnr-grow { display: flex; gap: .6em; align-items: center; padding: .4em .6em; border-radius: 8px; cursor: pointer; color: #aab1b9; }
+.tnr-grow:hover { background: #171c22; }
+.tnr-grow.on { background: #1f262e; color: #e8eaed; }
+.tnr-gnum { font-family: monospace; min-width: 2.2em; font-variant-numeric: tabular-nums; }
+.tnr-gtext { display: flex; flex-direction: column; min-width: 0; }
+.tnr-gname, .tnr-gnow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tnr-gname { font-size: .9em; }
+.tnr-gnow { font-size: .75em; color: #6b747e; }
+.tnr-side-btns { display: flex; gap: .4em; }
+.tnr-side-btns .tnr-btn { flex: 1; }
+.tnr-cats { display: flex; gap: .5em; flex-wrap: wrap; margin-top: 1em; }
+.tnr-cat { border: 1px solid #2c343e; background: transparent; color: #aab1b9; border-radius: 999px; padding: .35em 1em;
+  cursor: pointer; font: inherit; font-size: .9em; }
+.tnr-cat.on { color: #fff; border-color: transparent; }
+.tnr-cat[disabled] { opacity: .4; cursor: default; }
+
+@media (max-width: 760px) {
+  .tnr-tv-main { grid-template-columns: minmax(0, 1fr); }
+  .tnr-banner { left: .4em; right: .4em; bottom: .4em; padding: .5em .6em; font-size: .85em; }
+  .tnr-banner-logo { display: none; }
+  /* The picture is small on a phone; the side list already shows what's on. */
+  .tnr-banner-next { display: none; }
+  .tnr-banner-num { font-size: 1.5em; min-width: 1.8em; }
+  .tnr-screen-controls { opacity: 1; }
+}

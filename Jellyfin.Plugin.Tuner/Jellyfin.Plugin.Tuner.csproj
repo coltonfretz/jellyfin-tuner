@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Jellyfin 12.x runs on .NET 10; the 12.2.0 packages target net10.0. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Jellyfin.Plugin.Tuner</RootNamespace>
+    <AssemblyName>Jellyfin.Plugin.Tuner</AssemblyName>
+    <AssemblyVersion>0.7.0.0</AssemblyVersion>
+    <FileVersion>0.7.0.0</FileVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Compile against the host's API only. ExcludeAssets=runtime keeps these DLLs out of
+         the build output: Jellyfin already has them loaded, and shipping a second copy in
+         the plugin folder causes type-identity clashes at load time. -->
+    <PackageReference Include="Jellyfin.Controller" Version="12.2.0" ExcludeAssets="runtime" />
+    <PackageReference Include="Jellyfin.Model" Version="12.2.0" ExcludeAssets="runtime" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The client page and config page ship inside the DLL so an install is one file. -->
+    <EmbeddedResource Include="Web\tuner.js" LogicalName="Tuner.Web.tuner.js" />
+    <EmbeddedResource Include="Web\tuner.css" LogicalName="Tuner.Web.tuner.css" />
+    <EmbeddedResource Include="Web\homerows.js" LogicalName="Tuner.Web.homerows.js" />
+    <EmbeddedResource Include="Web\hls.min.js" LogicalName="Tuner.Web.hls.min.js" />
+    <EmbeddedResource Include="Configuration\configPage.html" LogicalName="Tuner.Configuration.configPage.html" />
+  </ItemGroup>
+
+</Project>

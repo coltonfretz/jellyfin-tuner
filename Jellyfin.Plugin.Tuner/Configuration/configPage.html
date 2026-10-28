@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Tuner</title>
+</head>
+<body>
+    <div id="TunerConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="TunerConfigForm">
+                    <h2>Radio</h2>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="RadioM3uUrl" label="Station list URL (M3U)" />
+                        <div class="fieldDescription">Station names look like "Genre · Station". Empty hides live radio.</div>
+                    </div>
+
+                    <h2>Jamendo</h2>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="JamendoClientId" label="Client ID" />
+                        <div class="fieldDescription">Leave empty to hide the Jamendo stations.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="JamendoKeepFolder" label="Keep folder" />
+                        <div class="fieldDescription">Kept tracks are saved here. Use a folder inside a Music library.</div>
+                    </div>
+
+                    <h2>TV</h2>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="DispatcharrUrl" label="Dispatcharr URL" />
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="password" id="DispatcharrApiKey" label="Dispatcharr API key" autocomplete="off" />
+                        <div class="fieldDescription" id="tnrKeyState">Only the server uses it; users' browsers never get it.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="HdhomerunUrl" label="HDHomeRun address" />
+                        <div class="fieldDescription">For the Antenna channels, for example http://192.168.1.50. Leave empty to hide them.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="AntennaHidden" label="Antenna channels to hide" />
+                        <div class="fieldDescription">Channel numbers separated by commas, for example 59.1, 39.2.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="AntennaNames" label="Antenna channel names" />
+                        <div class="fieldDescription">Number=name pairs separated by semicolons, for example 12.1=NBC (WTLV).</div>
+                    </div>
+
+                    <h2>Home page</h2>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="RotateLatestRows" />
+                            <span>Slide the Recently Added rows to new posters every so often</span>
+                        </label>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="RotateSeconds" label="Seconds between slides" min="20" max="3600" />
+                        <div class="fieldDescription">Each row waits while someone is pointing at it or scrolling it. Works in the browser, desktop and phone apps, not the TV apps.</div>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="MixMusicArtists" />
+                            <span>Mix up artists in Recently Added in Music (at most 3 albums each)</span>
+                        </label>
+                    </div>
+                    <div class="fieldDescription">Changes show up after a page reload.</div>
+
+                    <h2>My Media</h2>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="Seasons" label="Seasonal collections" />
+                        <div class="fieldDescription">Name=start..end pairs separated by semicolons, for example Halloween=10-01..11-01; Christmas=12-01..12-31. The name is a collection's name. In season it gets its own tile at the front of My Media and its playlists are shared with everyone; the rest of the year the tile is gone and its playlists are yours only.</div>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="HideCollectionsLibrary" />
+                            <span>Keep the Collections library out of everyone's My Media</span>
+                        </label>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="ShuffleLibraryTileDays" label="Days between new library tile pictures" min="0" max="365" />
+                        <div class="fieldDescription">Each library's tile gets a new random backdrop this often. 0 turns it off; use 0 if you upload your own library pictures, or they'll be replaced.</div>
+                    </div>
+
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="DisableInjection" />
+                            <span>Turn off the Radio and TV pages without uninstalling</span>
+                        </label>
+                    </div>
+
+                    <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var pluginId = '6d5e2f2a-5308-427c-9e34-42892a8fe0cc';
+                var text = ['RadioM3uUrl', 'JamendoClientId', 'JamendoKeepFolder', 'DispatcharrUrl', 'HdhomerunUrl', 'AntennaHidden', 'AntennaNames', 'Seasons'];
+                var page = document.querySelector('#TunerConfigPage');
+
+                page.addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        text.forEach(function (k) { page.querySelector('#' + k).value = config[k] || ''; });
+                        // The key never goes into the box (where it could be shown or saved
+                        // by a password manager); blank on save keeps the saved one.
+                        page.querySelector('#DispatcharrApiKey').value = '';
+                        page.querySelector('#tnrKeyState').textContent = config.DispatcharrApiKey
+                            ? "A key is saved. Paste a new one only to replace it. Users' browsers never get it."
+                            : "Not set: Surf TV's free channels stay off. Users' browsers never get it.";
+                        page.querySelector('#DisableInjection').checked = !!config.DisableInjection;
+                        page.querySelector('#RotateLatestRows').checked = config.RotateLatestRows !== false;
+                        page.querySelector('#MixMusicArtists').checked = config.MixMusicArtists !== false;
+                        page.querySelector('#RotateSeconds').value = config.RotateSeconds || 120;
+                        page.querySelector('#HideCollectionsLibrary').checked = config.HideCollectionsLibrary !== false;
+                        page.querySelector('#ShuffleLibraryTileDays').value = config.ShuffleLibraryTileDays == null ? 3 : config.ShuffleLibraryTileDays;
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+                page.querySelector('#TunerConfigForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        text.forEach(function (k) { config[k] = page.querySelector('#' + k).value.trim(); });
+                        var key = page.querySelector('#DispatcharrApiKey').value.trim();
+                        if (key) config.DispatcharrApiKey = key;
+                        config.DisableInjection = page.querySelector('#DisableInjection').checked;
+                        config.RotateLatestRows = page.querySelector('#RotateLatestRows').checked;
+                        config.MixMusicArtists = page.querySelector('#MixMusicArtists').checked;
+                        config.RotateSeconds = Math.max(20, parseInt(page.querySelector('#RotateSeconds').value, 10) || 120);
+                        config.HideCollectionsLibrary = page.querySelector('#HideCollectionsLibrary').checked;
+                        var days = parseInt(page.querySelector('#ShuffleLibraryTileDays').value, 10);
+                        config.ShuffleLibraryTileDays = isNaN(days) ? 3 : Math.max(0, days);
+                        ApiClient.updatePluginConfiguration(pluginId, config).then(Dashboard.processPluginConfigurationUpdateResult);
+                    });
+                    return false;
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>
