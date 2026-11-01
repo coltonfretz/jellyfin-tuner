@@ -155,8 +155,8 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnr-screen { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden;
   outline: none; box-shadow: inset 0 0 0 1px #ffffff10; }
 .tnr-screen:fullscreen { border-radius: 0; aspect-ratio: auto; }
-.tnr-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
-.tnr-tv-status { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+.tnr-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.tnr-tv-status { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; align-items: center; justify-content: center;
   color: #cfd5dc; font-size: 1.1em; pointer-events: none; text-align: center; padding: 1em; }
 .tnr-tv-status.show { display: flex; }
 .tnr-tv-digits { position: absolute; top: .6em; right: .8em; font: 500 2.2em monospace; color: #fff;
@@ -213,8 +213,9 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
    matches the rest of the site instead of bringing a palette of its own. */
 .tnm-wrap { max-width: 1500px; --tnm-accent: var(--jf-palette-primary-main, #00a4dc); --tnm-panel: rgba(255, 255, 255, .05);
   --tnm-panel2: rgba(255, 255, 255, .09); --tnm-dim: rgba(255, 255, 255, .62); --tnm-faint: rgba(255, 255, 255, .42); --tnm-card: 10.5em; }
-.tnm-tabs { display: flex; align-items: center; gap: .3em; margin: 0 0 1.6em; border-bottom: 1px solid rgba(255, 255, 255, .1);
+.tnm-tabs { display: flex; align-items: center; margin: 0 0 1.6em; border-bottom: 1px solid rgba(255, 255, 255, .1);
   overflow-x: auto; scrollbar-width: none; }
+.tnm-tabs > * + * { margin-left: .3em; }
 .tnm-tabs::-webkit-scrollbar { display: none; }
 .tnm-tab { color: var(--tnm-dim, rgba(255, 255, 255, .62)); text-decoration: none; padding: .7em .9em; font-size: 1.05em; white-space: nowrap;
   border-bottom: 2px solid transparent; margin-bottom: -1px; }
@@ -230,8 +231,9 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-h2 { font-size: 1.25em; font-weight: 500; margin: 1.4em 0 .6em; }
 
 /* Search */
-.tnm-searchbox { display: flex; align-items: center; gap: .5em; background: var(--tnm-panel2); border-radius: 10px; padding: 0 .9em;
+.tnm-searchbox { display: flex; align-items: center; background: var(--tnm-panel2); border-radius: 10px; padding: 0 .9em;
   max-width: 40em; border: 1px solid transparent; }
+.tnm-searchbox > * + * { margin-left: .5em; }
 .tnm-searchbox:focus-within { border-color: var(--tnm-accent); }
 .tnm-searchbox .material-icons { color: var(--tnm-faint); }
 .tnm-search { flex: 1; background: none; border: 0; outline: none; color: #fff; font: inherit; font-size: 1.1em; padding: .75em 0; min-width: 0; }
@@ -242,13 +244,16 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-genre span { position: relative; z-index: 1; }
 .tnm-genre img { position: absolute; right: -.6em; bottom: -.9em; width: 5.2em; height: 5.2em; object-fit: cover; border-radius: 6px;
   transform: rotate(18deg); box-shadow: 0 4px 14px rgba(0, 0, 0, .45); }
-.tnm-genre-more { background: var(--tnm-panel2); display: flex; flex-direction: column; gap: .4em; }
-.tnm-genre-more > span { display: inline-flex; align-items: center; gap: .35em; }
+.tnm-genre-more { background: var(--tnm-panel2); display: flex; flex-direction: column; }
+.tnm-genre-more > * + * { margin-top: .4em; }
+.tnm-genre-more > span { display: inline-flex; align-items: center; }
+.tnm-genre-more .material-icons { margin-right: .35em; }
 .tnm-genre-more small { font-size: .72em; font-weight: 400; color: var(--tnm-dim); line-height: 1.35; }
 
 /* Shelves and cards */
 .tnm-shelf { margin: 0 0 1.6em; }
-.tnm-shelf-head { display: flex; align-items: center; gap: .4em; margin-bottom: .55em; }
+.tnm-shelf-head { display: flex; align-items: center; margin-bottom: .55em; }
+.tnm-shelf-head > * + * { margin-left: .4em; }
 .tnm-shelf-head h2 { font-size: 1.2em; font-weight: 500; margin: 0; flex: 1; min-width: 0; }
 .tnm-more { color: var(--tnm-accent); text-decoration: none; font-size: .9em; margin-right: .5em; white-space: nowrap; }
 .tnm-more:hover { text-decoration: underline; }
@@ -257,7 +262,8 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-arrow:hover { background: var(--tnm-panel2); }
 .tnm-arrow .material-icons { font-size: 1.3em; }
 @media (pointer: coarse) { .tnm-arrow { display: none; } }
-.tnm-row { display: flex; gap: 1em; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-bottom: .2em; }
+.tnm-row { display: flex; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-bottom: .2em; }
+.tnm-row > * + * { margin-left: 1em; }
 .tnm-row::-webkit-scrollbar { display: none; }
 .tnm-row > .tnm-card { flex: 0 0 var(--tnm-card); scroll-snap-align: start; }
 .tnm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tnm-card), 1fr)); gap: 1.4em 1em; }
@@ -277,11 +283,12 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-artist .tnm-card-title { text-align: center; }
 
 /* Spotlight */
-.tnm-spot { position: relative; display: flex; align-items: flex-end; gap: 1.6em; min-height: 17em; padding: 1.6em; border-radius: 14px;
+.tnm-spot { position: relative; display: flex; align-items: flex-end; min-height: 17em; padding: 1.6em; border-radius: 14px;
   overflow: hidden; margin-bottom: 1.6em; cursor: pointer; box-sizing: border-box; }
-.tnm-spot-bg { position: absolute; inset: -40px; background-size: cover; background-position: center; filter: blur(34px) saturate(1.3); }
-.tnm-spot-bg.tnm-backdrop { inset: 0; filter: none; background-position: center 25%; }
-.tnm-spot-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .45) 55%, rgba(0, 0, 0, .15) 100%); }
+.tnm-spot-art { margin-right: 1.6em; }
+.tnm-spot-bg { position: absolute; top: -40px; right: -40px; bottom: -40px; left: -40px; background-size: cover; background-position: center; filter: blur(34px) saturate(1.3); }
+.tnm-spot-bg.tnm-backdrop { top: 0; right: 0; bottom: 0; left: 0; filter: none; background-position: center 25%; }
+.tnm-spot-shade { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .45) 55%, rgba(0, 0, 0, .15) 100%); }
 .tnm-spot-art { position: relative; width: 13em; flex-shrink: 0; box-shadow: 0 8px 30px rgba(0, 0, 0, .55); }
 .tnm-spot-text { position: relative; min-width: 0; }
 .tnm-spot-text h2 { font-size: 2em; font-weight: 500; margin: .1em 0 .15em; }
@@ -290,22 +297,27 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-head-sub { color: var(--tnm-dim); line-height: 1.5; }
 .tnm-head-sub a { color: #fff; text-decoration: none; }
 .tnm-head-sub a:hover { text-decoration: underline; }
-.tnm-buttons { display: flex; gap: .6em; flex-wrap: wrap; margin-top: 1em; }
-.tnm-btn { display: inline-flex; align-items: center; gap: .4em; background: var(--tnm-panel2); color: #fff; border: 0; border-radius: 8px;
+.tnm-buttons { display: flex; flex-wrap: wrap; margin-top: 1em; }
+.tnm-buttons > * { margin: 0 .6em .5em 0; }
+.tnm-np-idle .tnm-buttons > * { margin: 0 .3em .5em; }
+.tnm-btn { display: inline-flex; align-items: center; background: var(--tnm-panel2); color: #fff; border: 0; border-radius: 8px;
   padding: .55em 1.1em; font: inherit; cursor: pointer; text-decoration: none; }
+.tnm-btn > .material-icons { margin-right: .4em; }
 .tnm-btn:hover { background: rgba(255, 255, 255, .16); }
 .tnm-btn .material-icons { font-size: 1.25em; }
 .tnm-primary { background: var(--tnm-accent); }
 .tnm-primary:hover { background: var(--tnm-accent); filter: brightness(1.12); }
 
 /* A to Z */
-.tnm-az-head { display: flex; align-items: baseline; gap: 1.2em; margin: 0 0 .3em; }
+.tnm-az-head { display: flex; align-items: baseline; margin: 0 0 .3em; }
+.tnm-az-head > * + * { margin-left: 1.2em; }
 /* Two headings side by side; the lit one is what the rows below show. */
 .tnm-az-head button { background: none; border: 0; padding: 0 0 .2em; font: inherit; font-size: 1.45em; font-weight: 500; cursor: pointer;
   color: var(--tnm-faint); border-bottom: 2px solid transparent; }
 .tnm-az-head button:hover { color: #fff; }
 .tnm-az-head button.on { color: #fff; border-bottom-color: var(--tnm-accent); }
-.tnm-letters { display: flex; flex-wrap: wrap; gap: .15em; margin: .3em 0 1.2em; }
+.tnm-letters { display: flex; flex-wrap: wrap; margin: .3em 0 1.2em; }
+.tnm-letters > * { margin: 0 .15em .15em 0; }
 .tnm-letters > * { min-width: 1.9em; text-align: center; padding: .25em 0; font-size: .95em; }
 .tnm-letters button { background: none; border: 0; color: var(--tnm-accent); font: inherit; cursor: pointer; border-radius: 4px; }
 .tnm-letters button:hover { background: var(--tnm-panel); }
@@ -313,7 +325,8 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-az .tnm-shelf { scroll-margin-top: 6em; }
 
 /* Album, playlist, artist and genre pages */
-.tnm-head { display: flex; align-items: flex-end; gap: 1.6em; margin-bottom: 1.6em; }
+.tnm-head { display: flex; align-items: flex-end; margin-bottom: 1.6em; }
+.tnm-head > * + * { margin-left: 1.6em; }
 .tnm-head-art { width: 15em; flex-shrink: 0; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); }
 .tnm-head-text { min-width: 0; }
 .tnm-head h1 { font-size: 2.1em; font-weight: 500; margin: .1em 0 .2em; overflow-wrap: anywhere; }
@@ -322,11 +335,12 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-genre-head .tnm-head, .tnm-artist-head .tnm-head { margin: 0; position: relative; }
 .tnm-genre-head .tnm-kicker { color: #fff; opacity: .8; }
 .tnm-artist-head.tnm-has-bg { min-height: 16em; display: flex; align-items: flex-end; }
-.tnm-artist-head.tnm-has-bg::before { content: ''; position: absolute; inset: 0; border-radius: inherit;
+.tnm-artist-head.tnm-has-bg::before { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; border-radius: inherit;
   background: linear-gradient(90deg, rgba(0, 0, 0, .8), rgba(0, 0, 0, .25)); }
 .tnm-artist-head:not(.tnm-has-bg) { padding: 0; }
 .tnm-songs { list-style: none; margin: 0 0 1.6em; padding: 0; }
-.tnm-song { display: flex; align-items: center; gap: .9em; padding: .45em .6em; border-radius: 8px; cursor: pointer; }
+.tnm-song { display: flex; align-items: center; padding: .45em .6em; border-radius: 8px; cursor: pointer; }
+.tnm-song > * + * { margin-left: .9em; }
 .tnm-song:hover, .tnm-song:focus-visible { background: var(--tnm-panel); outline: none; }
 .tnm-num { width: 2.6em; flex-shrink: 0; text-align: center; color: var(--tnm-faint); font-variant-numeric: tabular-nums; }
 /* px, not em: the initials inside a picture-less thumbnail need a smaller font, and an em
@@ -339,7 +353,8 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-disc { color: var(--tnm-dim); font-size: .85em; padding: 1em .6em .3em; }
 
 /* Now Playing */
-.tnm-np-main { display: flex; gap: 2.4em; align-items: center; margin: 1em 0 2em; }
+.tnm-np-main { display: flex; align-items: center; margin: 1em 0 2em; }
+.tnm-np-main > * + * { margin-left: 2.4em; }
 .tnm-np-art { width: min(26em, 40vw); flex-shrink: 0; box-shadow: 0 10px 40px rgba(0, 0, 0, .55); border-radius: 12px; }
 .tnm-np-art .material-icons { font-size: 3em; }
 .tnm-np-radio .tnm-np-art img { object-fit: contain; padding: 15%; box-sizing: border-box; }
@@ -348,10 +363,11 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-np-sub { color: var(--tnm-dim); font-size: 1.1em; margin-top: .2em; }
 .tnm-np-sub a { color: inherit; }
 .tnm-np-bar { height: 6px; background: rgba(255, 255, 255, .15); border-radius: 3px; margin: 1.8em 0 .5em; cursor: pointer; position: relative; }
-.tnm-np-bar::before { content: ''; position: absolute; inset: -8px 0; }
+.tnm-np-bar::before { content: ''; position: absolute; top: -8px; right: 0; bottom: -8px; left: 0; }
 .tnm-np-fill { height: 100%; background: #fff; border-radius: 3px; width: 0; }
 .tnm-np-times { display: flex; justify-content: space-between; color: var(--tnm-faint); font-size: .85em; font-variant-numeric: tabular-nums; }
-.tnm-np-controls { display: flex; gap: 1.4em; justify-content: center; margin-top: 1em; }
+.tnm-np-controls { display: flex; justify-content: center; margin-top: 1em; }
+.tnm-np-controls > * + * { margin-left: 1.4em; }
 .tnm-np-controls button { background: none; border: 0; color: #fff; cursor: pointer; border-radius: 50%; width: 3.2em; height: 3.2em;
   display: flex; align-items: center; justify-content: center; padding: 0; }
 .tnm-np-controls button:hover { background: var(--tnm-panel); }
@@ -362,13 +378,29 @@ body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[da
 .tnm-np-idle h2 { color: #fff; font-weight: 500; margin: .4em 0 .2em; }
 .tnm-np-idle .tnm-buttons { justify-content: center; }
 
-/* Older browser engines (Chromium before 88, Safari before 15) don't know aspect-ratio: covers
-   then took the picture's own shape and picture-less ones had no height at all. A padded
-   box keeps them square there. Current Chrome, Firefox and Safari never use this. */
+/* Older browser engines don't know aspect-ratio (Chromium before 88, Safari before 15), and
+   Jellyfin Media Player, the desktop app, runs one (Qt WebEngine, Chromium 83; 2026-11-01 its
+   Spotlight cover came out as a tall strip). There, cards are squared with padding, which is
+   a share of the PARENT's width: right inside a card, wrong anywhere wider, so the covers with
+   a set width get a set height instead. Same idea for the TV screen. Also why this file uses
+   margins rather than flex "gap" (Chromium 84) and top/right/bottom/left rather than "inset"
+   (Chromium 87). Current Chrome, Firefox and Safari never use this block. */
 @supports not (aspect-ratio: 1 / 1) {
-  .tnm-art { position: relative; height: 0; padding-bottom: 100%; }
-  .tnm-art > img { position: absolute; top: 0; left: 0; }
-  .tnm-noart > span, .tnm-noart > .material-icons { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+  .tnm-artbox > .tnm-art { position: relative; height: 0; padding-bottom: 100%; }
+  .tnm-artbox > .tnm-art > img { position: absolute; top: 0; left: 0; }
+  .tnm-artbox > .tnm-noart > span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+  .tnm-spot-art { height: 13em; }
+  .tnm-head-art { height: 15em; }
+  .tnm-np-art { height: 26em; width: 26em; max-width: 40vw; max-height: 40vw; }
+  .tnm-mini { height: 40px; }
+  .tnr-screen { height: 0; padding-bottom: 56.25%; }
+  .tnr-screen:fullscreen { height: 100%; padding-bottom: 0; }
+  @media (max-width: 760px) {
+    .tnm-spot-art { height: 9em; }
+    .tnm-head-art { height: 11em; }
+    .tnm-np-art { position: relative; width: 100%; max-width: none; max-height: none; height: 0; padding-bottom: 100%; }
+    .tnm-np-art > img { position: absolute; top: 0; left: 0; }
+  }
 }
 
 /* The top bar's Music link stays lit on the Music page and on Radio inside it. */
@@ -379,6 +411,9 @@ body.tnr-music-on[data-tnr-page="radio"] .MuiAppBar-root .MuiStack-root > a[href
 @media (max-width: 760px) {
   .tnm-wrap { --tnm-card: 8.5em; }
   .tnm-spot, .tnm-head, .tnm-np-main { flex-direction: column; align-items: flex-start; }
+  /* stacked: the side margins become top margins */
+  .tnm-spot-art { margin: 0 0 1.2em; }
+  .tnm-head > * + *, .tnm-np-main > * + * { margin-left: 0; margin-top: 1.2em; }
   .tnm-spot-art { width: 9em; }
   .tnm-head-art { width: 11em; }
   .tnm-np-main { align-items: stretch; }
