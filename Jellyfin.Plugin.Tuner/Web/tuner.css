@@ -111,7 +111,7 @@ body.tnr-page-active .backdropContainer { display: none !important; }
 /* Jellyfin 12 draws some pages with React (Settings > Display and the other user settings):
    they're .page elements in .skinBody, not .mainAnimatedPage, so showPage() doesn't hide
    them, and React owns their class list. Opening Music from one left it showing through
-   ours (Sarah, 2026-11-01). Hidden by rule instead, for as long as our page is up. */
+   ours. Hidden by rule instead, for as long as our page is up. */
 body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; }
 /* Sections (TV, Movies): the pages a section takes in (Live TV, the Classics libraries) are
    reached through its tabs, so their links and My Media tiles go; the section's own link
@@ -214,8 +214,8 @@ body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; 
 }
 
 /* ---------- Music page (music.js) ----------
-   Panels are see-through white over whatever theme Jellyfin has (the Fretzflix Night glass
-   theme on this server), and the accent is the theme's own primary color, so the page
+   Panels are see-through white over whatever theme Jellyfin has (custom glass themes
+   included), and the accent is the theme's own primary color, so the page
    matches the rest of the site instead of bringing a palette of its own. */
 .tnm-wrap { max-width: 1500px; --tnm-accent: var(--jf-palette-primary-main, #00a4dc); --tnm-panel: rgba(255, 255, 255, .05);
   --tnm-panel2: rgba(255, 255, 255, .09); --tnm-dim: rgba(255, 255, 255, .62); --tnm-faint: rgba(255, 255, 255, .42); --tnm-card: 10.5em; }
@@ -385,7 +385,7 @@ body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; 
 .tnm-np-idle .tnm-buttons { justify-content: center; }
 
 /* Older browser engines don't know aspect-ratio (Chromium before 88, Safari before 15), and
-   Jellyfin Media Player, the desktop app, runs one (Qt WebEngine, Chromium 83; 2026-11-01 its
+   Jellyfin Media Player, the desktop app, runs one (Qt WebEngine, Chromium 83; without this its
    Spotlight cover came out as a tall strip). There, cards are squared with padding, which is
    a share of the PARENT's width: right inside a card, wrong anywhere wider, so the covers with
    a set width get a set height instead. Same idea for the TV screen. Also why this file uses

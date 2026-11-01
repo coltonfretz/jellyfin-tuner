@@ -1587,8 +1587,8 @@
         if (!TVART.list) {
             if (TVART.loading) return;
             TVART.loading = true;
-            // Classics first; if none of its shows has a backdrop (this server's Internet Archive
-            // classics only have posters), any show that does.
+            // Classics first; if none of its shows has a backdrop (public-domain classics often
+            // only have posters), any show that does.
             const find = (parent) => {
                 const q = { IncludeItemTypes: 'Series', Recursive: true, ImageTypes: 'Backdrop', Fields: 'BackdropImageTags', Limit: 500 };
                 if (parent) q.ParentId = parent;

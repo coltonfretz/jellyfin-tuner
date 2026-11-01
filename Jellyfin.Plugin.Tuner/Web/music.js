@@ -42,9 +42,9 @@
     const INDEX_TTL = 30 * 60 * 1000;
     const NP_POLL_MS = 2000;
     const LETTERS = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-    // Genre tile colors: the colors the Radio dial uses for its genres on this server (from
-    // the station list), so a genre looks the same on both pages, and picked for how the
-    // genre feels rather than at random (Sarah's ask, 2026-11-01). Keys are the genre name
+    // Genre tile colors: the same colors as the Radio dial's genres in the station list this
+    // was built with, so a genre looks the same on both pages, and picked for how the genre
+    // feels rather than at random (random colors repeated and clashed). Keys are the genre name
     // in lower case with everything but letters and digits removed ("R&B" -> "rb").
     const RADIO_COLORS = ['#8B1E2D', '#2F2F2F', '#4A2C6F', '#9C4A1A', '#1F4E79', '#00695C', '#AD1457', '#8D6E00',
         '#0277BD', '#4E6A78', '#E64A19', '#6D4C41', '#556B2F', '#283593', '#006064', '#2E7D32'];
@@ -194,7 +194,7 @@
 
     // Decade rows. Newest decades first; as soon as a decade is too thin to stand alone,
     // it and everything older share one "Before <year>" row. WHY: most libraries lean recent
-    // (this one has 3 albums from the 80s), and a row of three covers looks broken.
+    // (three albums from the 80s is common), and a row of three covers looks broken.
     function buckets(idx) {
         const counts = {};
         idx.real.forEach((a) => { if (a.year) { const d = Math.floor(a.year / 10) * 10; counts[d] = (counts[d] || 0) + 1; } });
@@ -522,8 +522,8 @@
         };
         idx.decades.forEach((s) => parts.push(row(s)));
         shuffle(idx.mixed, rng('mixed' + day)).slice(0, DAILY_SHELVES).forEach((s) => parts.push(row(s)));
-        // The Albums / Artists switch is the section's heading (Sarah: "A to Z" said nothing
-        // the letter bar under it doesn't already say).
+        // The Albums / Artists switch is the section's heading: an "A to Z" title said nothing
+        // the letter bar under it doesn't already say.
         parts.push(`<section class="tnm-az" id="tnm-az"><div class="tnm-az-head" role="group" aria-label="All music by">
                 <button type="button" data-act="az" data-mode="albums" class="${M.azMode === 'albums' ? 'on' : ''}" aria-pressed="${M.azMode === 'albums'}">Albums</button>
                 <button type="button" data-act="az" data-mode="artists" class="${M.azMode === 'artists' ? 'on' : ''}" aria-pressed="${M.azMode === 'artists'}">Artists</button></div>
