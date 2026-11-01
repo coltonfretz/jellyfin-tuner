@@ -37,9 +37,9 @@ plugins = json.load(open(path)) if os.path.exists(path) else []
 if not plugins:
     plugins = [{
         "guid": guid,
-        "name": "Tuner",
-        "description": "Radio dial, TV surf mode and a simpler Music page for the Jellyfin web UI.",
-        "overview": "Live radio, Jamendo, free TV and antenna channels, an Apple Music style Music page, TV and Movies sections with tabs, rotating home rows, seasonal tiles.",
+        "name": "Jellyfin-Tuned",
+        "description": "Radio, Surf TV, a simpler Music page and a tidier layout for the Jellyfin web UI.",
+        "overview": "Live radio, Jamendo, free TV and antenna channels, an Apple Music style Music page, TV and Movies sections with tabs, a Request link to Seerr, rotating home rows, seasonal tiles.",
         "owner": "coltonfretz",
         "category": "General",
         "versions": [],
@@ -59,7 +59,7 @@ PY
 
 # The release (with the zip) goes up before the catalog points at it, so the
 # catalog never lists a download that doesn't exist yet.
-gh release create "$TAG" "$ZIP" -R "$REPO" --title "Tuner $VER" --notes "$CHANGELOG"
+gh release create "$TAG" "$ZIP" -R "$REPO" --title "Jellyfin-Tuned $VER" --notes "$CHANGELOG"
 git add manifest.json
 # COMMIT_TRAILER (optional) is added to the commit message, e.g. a Co-Authored-By line.
 git commit -q -m "Release $VER: $CHANGELOG" ${COMMIT_TRAILER:+-m "$COMMIT_TRAILER"}

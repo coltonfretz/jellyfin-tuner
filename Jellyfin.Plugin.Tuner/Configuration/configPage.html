@@ -2,13 +2,31 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Tuner</title>
+    <title>Jellyfin-Tuned</title>
 </head>
 <body>
     <div id="TunerConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <style>
+            /* Plain underlined tabs in the text color, so they fit any dashboard theme. */
+            .tnr-cfg-tabs { display: flex; flex-wrap: wrap; margin: 0 0 1em; border-bottom: 1px solid rgba(128, 128, 128, .35); }
+            .tnr-cfg-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; margin: 0 1.2em -1px 0;
+                padding: .7em .1em; color: inherit; font: inherit; font-weight: 500; opacity: .65; cursor: pointer; }
+            .tnr-cfg-tabs button[aria-selected="true"] { opacity: 1; border-bottom-color: currentColor; }
+            .tnr-cfg-tab > h2:first-child { margin-top: .4em; }
+            .tnr-cfg-tab[hidden] { display: none !important; }
+        </style>
         <div data-role="content">
             <div class="content-primary">
-                <form id="TunerConfigForm">
+                <form id="TunerConfigForm" novalidate>
+                    <!-- Tabs only show and hide groups: every field stays in the form, so Save
+                         stores all of them whichever tab is open. -->
+                    <div class="tnr-cfg-tabs" role="tablist">
+                        <button type="button" role="tab" data-tab="sources">Radio &amp; TV</button>
+                        <button type="button" role="tab" data-tab="layout">Layout</button>
+                        <button type="button" role="tab" data-tab="home">Home</button>
+                    </div>
+
+                    <div class="tnr-cfg-tab" data-tab="sources" role="tabpanel">
                     <h2>Radio</h2>
                     <div class="inputContainer">
                         <input is="emby-input" type="text" id="RadioM3uUrl" label="Station list URL (M3U)" />
@@ -45,7 +63,9 @@
                         <input is="emby-input" type="text" id="AntennaNames" label="Antenna channel names" />
                         <div class="fieldDescription">Number=name pairs separated by semicolons, for example 12.1=NBC (WTLV).</div>
                     </div>
+                    </div>
 
+                    <div class="tnr-cfg-tab" data-tab="home" role="tabpanel">
                     <h2>Home page</h2>
                     <div class="checkboxContainer">
                         <label>
@@ -65,6 +85,24 @@
                     </div>
                     <div class="fieldDescription">Changes show up after a page reload.</div>
 
+                    <h2>My Media</h2>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="Seasons" label="Seasonal collections" />
+                        <div class="fieldDescription">Name=start..end pairs separated by semicolons, for example Halloween=10-01..11-01; Christmas=12-01..12-31. The name is a collection's name. In season it gets its own tile at the front of My Media and its playlists are shared with everyone; the rest of the year the tile is gone and its playlists are yours only.</div>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="HideCollectionsLibrary" />
+                            <span>Keep the Collections library out of everyone's My Media</span>
+                        </label>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="ShuffleLibraryTileDays" label="Days between new library tile pictures" min="0" max="365" />
+                        <div class="fieldDescription">Each library's tile gets a new random backdrop this often. 0 turns it off; use 0 if you upload your own library pictures, or they'll be replaced.</div>
+                    </div>
+                    </div>
+
+                    <div class="tnr-cfg-tab" data-tab="layout" role="tabpanel">
                     <h2>Music page</h2>
                     <div class="checkboxContainer">
                         <label>
@@ -110,26 +148,12 @@
                         <div class="fieldDescription">Your Seerr or Jellyseerr address, for example https://requests.example.com. Set: a Request link joins the top bar and side menu and opens it in a new browser tab (the desktop app opens it in your browser). Empty: no link.</div>
                     </div>
 
-                    <h2>My Media</h2>
-                    <div class="inputContainer">
-                        <input is="emby-input" type="text" id="Seasons" label="Seasonal collections" />
-                        <div class="fieldDescription">Name=start..end pairs separated by semicolons, for example Halloween=10-01..11-01; Christmas=12-01..12-31. The name is a collection's name. In season it gets its own tile at the front of My Media and its playlists are shared with everyone; the rest of the year the tile is gone and its playlists are yours only.</div>
-                    </div>
-                    <div class="checkboxContainer">
-                        <label>
-                            <input is="emby-checkbox" type="checkbox" id="HideCollectionsLibrary" />
-                            <span>Keep the Collections library out of everyone's My Media</span>
-                        </label>
-                    </div>
-                    <div class="inputContainer">
-                        <input is="emby-input" type="number" id="ShuffleLibraryTileDays" label="Days between new library tile pictures" min="0" max="365" />
-                        <div class="fieldDescription">Each library's tile gets a new random backdrop this often. 0 turns it off; use 0 if you upload your own library pictures, or they'll be replaced.</div>
                     </div>
 
                     <div class="checkboxContainer">
                         <label>
                             <input is="emby-checkbox" type="checkbox" id="DisableInjection" />
-                            <span>Turn off everything Tuner adds to the web pages without uninstalling</span>
+                            <span>Turn off everything Jellyfin-Tuned adds to the web pages without uninstalling</span>
                         </label>
                     </div>
 
@@ -142,6 +166,21 @@
                 var pluginId = '6d5e2f2a-5308-427c-9e34-42892a8fe0cc';
                 var text = ['RadioM3uUrl', 'JamendoClientId', 'JamendoKeepFolder', 'DispatcharrUrl', 'HdhomerunUrl', 'AntennaHidden', 'AntennaNames', 'Seasons', 'TvClassicsLibrary', 'MoviesClassicsLibrary', 'RequestUrl'];
                 var page = document.querySelector('#TunerConfigPage');
+
+                // Tabs: the last one opened is remembered for this browser only.
+                function showTab(name) {
+                    page.querySelectorAll('.tnr-cfg-tab').forEach(function (t) { t.hidden = t.dataset.tab !== name; });
+                    page.querySelectorAll('.tnr-cfg-tabs button').forEach(function (b) {
+                        b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false');
+                    });
+                    try { localStorage.setItem('tnr-cfg-tab', name); } catch (e) { /* private window */ }
+                }
+                page.querySelectorAll('.tnr-cfg-tabs button').forEach(function (b) {
+                    b.addEventListener('click', function () { showTab(b.dataset.tab); });
+                });
+                var saved = null;
+                try { saved = localStorage.getItem('tnr-cfg-tab'); } catch (e) { /* private window */ }
+                showTab(page.querySelector('.tnr-cfg-tab[data-tab="' + saved + '"]') ? saved : 'sources');
 
                 page.addEventListener('pageshow', function () {
                     Dashboard.showLoadingMsg();

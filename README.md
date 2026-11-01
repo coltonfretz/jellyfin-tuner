@@ -1,6 +1,8 @@
-# Tuner (Jellyfin plugin)
+# Jellyfin-Tuned (Jellyfin plugin)
 
-Adds **Radio** and **Surf TV** pages to the Jellyfin web UI, an optional simpler **Music** page, plus a few home page touches: "Recently Added" rows that rotate, seasonal tiles in My Media, and library tiles that get a new picture every few days.
+Called Tuner before 1.0; the code, the repository and its web addresses still use that name.
+
+Adds **Radio** and **Surf TV** pages to the Jellyfin web UI, an optional simpler **Music** page, tidier **TV** and **Movies** sections, an optional **Request** link, plus a few home page touches: "Recently Added" rows that rotate, seasonal tiles in My Media, and library tiles that get a new picture every few days.
 
 > Built with Claude for my own server and shared as is. It works on my setup (Jellyfin 12.4, the web UI, Jellyfin Media Player and the Android app). Updated as needed. Issues and pull requests are welcome.
 
@@ -29,16 +31,20 @@ Needs Jellyfin 12.2 or newer.
 **From the plugin catalog (gets update notices):**
 
 1. Dashboard > Plugins > **Repositories** (Catalog > the gear icon on some versions) > add:
-   - Name: `Tuner`
+   - Name: `Jellyfin-Tuned`
    - URL: `https://raw.githubusercontent.com/coltonfretz/jellyfin-tuner/main/manifest.json`
-2. Dashboard > Plugins > **Catalog** > Tuner > Install.
+2. Dashboard > Plugins > **Catalog** > Jellyfin-Tuned > Install.
 3. Restart Jellyfin.
 
-**By hand:** download `tuner_<version>.zip` from [Releases](https://github.com/coltonfretz/jellyfin-tuner/releases), put `Jellyfin.Plugin.Tuner.dll` in a folder named `Tuner_<version>` inside Jellyfin's plugins folder (`/config/plugins` in the official Docker image), and restart Jellyfin.
+**By hand:** download `tuner_<version>.zip` from [Releases](https://github.com/coltonfretz/jellyfin-tuner/releases), put `Jellyfin.Plugin.Tuner.dll` in a folder named `Jellyfin-Tuned_<version>` inside Jellyfin's plugins folder (`/config/plugins` in the official Docker image), and restart Jellyfin.
 
-Then open **Dashboard > Plugins > Tuner** to set it up, and reload the web UI.
+Then open **Dashboard > Plugins > Jellyfin-Tuned** to set it up, and reload the web UI.
 
 ## Settings
+
+The settings page has three tabs. **Turn off the pages**, below them, stops adding Jellyfin-Tuned to the web UI without uninstalling.
+
+**Radio & TV**
 
 | Setting | What it does |
 |---|---|
@@ -48,15 +54,24 @@ Then open **Dashboard > Plugins > Tuner** to set it up, and reload the web UI.
 | Dispatcharr URL and API key | Surf TV's free channels and their guide. The key stays on the server; browsers never get it. |
 | HDHomeRun address | Surf TV's antenna channels, for example `http://192.168.1.50`. Give the tuner a fixed address. |
 | Antenna channels to hide / rename | Hide channels by number (`7.3,23.3`), and give channels friendlier names than their call signs (`7.1=PBS;12.1=NBC`). |
-| Rotate Recently Added | On/off, and how often (20 s minimum). Also "spread music artists out". |
-| Seasons | `Name=MM-DD..MM-DD` pairs separated by semicolons, both days included, wrapping past New Year if needed (`Holidays=12-01..01-05`). Name is a Jellyfin collection. |
-| Hide the Collections library | Keeps the all-year Collections tile out of everyone's My Media, so seasonal collections only show in season. |
-| Library tile pictures | Days between new pictures for each library's tile, 0 for never. Set it to 0 if you uploaded your own library pictures, or they'll be replaced. |
+
+**Layout**
+
+| Setting | What it does |
+|---|---|
 | Music page | On/off (off by default, since it takes over the Music links). Also the fewest songs for something to count as an album (4): shorter releases are treated as singles and left off the album shelves, but Search and the artist and genre pages still show them. |
 | TV section | On/off (off by default), and the name of the TV library for the Classics tab (empty: no Classics tab). |
 | Movies section | On/off (off by default), and the name of the movie library for the Classics tab. |
 | Request site address | Your Seerr or Jellyseerr address (http or https). Empty (the default): no Request link. |
-| Turn off the pages | Stops adding Tuner to the web UI without uninstalling. |
+
+**Home**
+
+| Setting | What it does |
+|---|---|
+| Rotate Recently Added | On/off, and how often (20 s minimum). Also "spread music artists out". |
+| Seasons | `Name=MM-DD..MM-DD` pairs separated by semicolons, both days included, wrapping past New Year if needed (`Holidays=12-01..01-05`). Name is a Jellyfin collection. |
+| Hide the Collections library | Keeps the all-year Collections tile out of everyone's My Media, so seasonal collections only show in season. |
+| Library tile pictures | Days between new pictures for each library's tile, 0 for never. Set it to 0 if you uploaded your own library pictures, or they'll be replaced. |
 
 ### Station list
 
@@ -81,7 +96,7 @@ While a season is on, a tile for its collection appears at the front of everyone
 
 - Curate with Jellyfin's own **Add to collection**. The collection's Thumb image is the tile; Primary is the poster on its page.
 - Playlists inside a season's collection are public in season and private (owner only) out of season, so a holiday mix isn't sitting in everyone's Playlists in June.
-- The daily task **Dashboard > Scheduled Tasks > Tuner > Seasons and library tiles** (04:10 and at startup) handles the playlists, the Collections tile and the library pictures. Run it by hand after changing a season's dates.
+- The daily task **Dashboard > Scheduled Tasks > Jellyfin-Tuned > Seasons and library tiles** (04:10 and at startup) handles the playlists, the Collections tile and the library pictures. Run it by hand after changing a season's dates.
 
 ## Music page
 

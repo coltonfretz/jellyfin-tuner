@@ -1089,7 +1089,7 @@
         const section = document.createElement('div');
         section.className = 'tnr-nav' + (t.kind === 'mui' ? ' tnr-nav-mui' : '');
         section.dataset.v = '2';
-        section.innerHTML = (t.kind === 'mui' ? '<div class="tnr-nav-head">Tuner</div>' : '<h3 class="sidebarHeader">Tuner</h3>')
+        section.innerHTML = (t.kind === 'mui' ? '<div class="tnr-nav-head">Jellyfin-Tuned</div>' : '<h3 class="sidebarHeader">Jellyfin-Tuned</h3>')
             + ENTRIES.map((en) => (t.kind === 'mui'
                 ? `<a class="tnr-nav-link" data-kind="${en.kind}" href="${entryHref(en.kind)}"><span class="material-icons" aria-hidden="true">${en.material}</span><span>${en.label}</span></a>`
                 : `<a is="emby-linkbutton" data-kind="${en.kind}" class="navMenuOption lnkMediaFolder emby-button" href="${entryHref(en.kind)}">

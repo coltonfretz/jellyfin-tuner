@@ -1,9 +1,9 @@
 [
   {
     "guid": "6d5e2f2a-5308-427c-9e34-42892a8fe0cc",
-    "name": "Tuner",
-    "description": "Radio dial, TV surf mode and a simpler Music page for the Jellyfin web UI.",
-    "overview": "Live radio, Jamendo, free TV and antenna channels, an Apple Music style Music page, TV and Movies sections with tabs, rotating home rows, seasonal tiles.",
+    "name": "Jellyfin-Tuned",
+    "description": "Radio, Surf TV, a simpler Music page and a tidier layout for the Jellyfin web UI.",
+    "overview": "Live radio, Jamendo, free TV and antenna channels, an Apple Music style Music page, TV and Movies sections with tabs, a Request link to Seerr, rotating home rows, seasonal tiles.",
     "owner": "coltonfretz",
     "category": "General",
     "versions": [

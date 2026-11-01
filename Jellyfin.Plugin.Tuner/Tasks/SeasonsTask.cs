@@ -23,7 +23,7 @@ public class SeasonsTask : IScheduledTask
 
     public string Description => "Shares seasonal playlists in season, keeps the Collections library out of My Media, and redraws library tiles every few days.";
 
-    public string Category => "Tuner";
+    public string Category => "Jellyfin-Tuned";
 
     public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
         => _seasons.RunUpkeepAsync(progress, cancellationToken);
