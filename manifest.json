@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.10.1.0",
+        "changelog": "Music page (Search, Catalog, Now Playing, Radio), TV and Movies sections with tabs, home TV row, fixes for Jellyfin Media Player",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v0.10.1.0/tuner_0.10.1.0.zip",
+        "checksum": "90775c7447d81b702cec259601ae3b5b",
+        "timestamp": "2026-11-01T09:49:27Z"
+      },
+      {
         "version": "0.7.0.0",
         "changelog": "First public release: radio, Jamendo, Surf TV, rotating home rows, seasonal tiles",
         "targetAbi": "12.2.0.0",
