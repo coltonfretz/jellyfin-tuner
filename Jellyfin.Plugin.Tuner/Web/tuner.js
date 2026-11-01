@@ -27,6 +27,10 @@
     const ME = document.currentScript;
     const TV_ON = !!(ME && ME.dataset.tvSection);
     const TV_CLASSICS = (ME && ME.dataset.tvClassics) || '';
+    // "One Movies section" (setting): the Movies link gets tabs Movies | Classics, the second
+    // being the movie library named here.
+    const MOVIES_ON = !!(ME && ME.dataset.moviesSection);
+    const MOVIES_CLASSICS = (ME && ME.dataset.moviesClassics) || '';
     const PAGE_ID = 'tnr-radio-page';
     const NOWPLAYING_MS = 20000;
     const FAV_COLOR = '#B8860B';
@@ -990,7 +994,7 @@
         renderMini();
         // Back from Surf to Guide or Classics: Jellyfin shows its kept page again without
         // redrawing anything, so the body observer never fires; put the TV tabs back now.
-        if (TV_ON) injectTvTabs();
+        injectSections();
     }
 
     // jellyfin-web navigates with pushState, which fires no event, so poll the URL
@@ -1191,7 +1195,7 @@
         const list = document.querySelector('#user-view-overflow-menu ul[role="menu"]');
         if (!list) return false;
         list.querySelectorAll('.tnr-moreitem').forEach((n) => n.remove());
-        list.querySelectorAll('a[role="menuitem"]').forEach((a) => { if (isMergedTv(hrefOf(a))) a.style.display = 'none'; });
+        list.querySelectorAll('a[role="menuitem"]').forEach((a) => { if (isMerged(hrefOf(a))) a.style.display = 'none'; });
         const proto = list.querySelector('a[role="menuitem"]:not(.tnr-moreitem)');
         // Tucked links come before everything Jellyfin already put in its More (they sat
         // left of it in the bar), so they go at the top, in bar order.
@@ -1315,8 +1319,8 @@
         if (bar) {
             const stack = bar.querySelector(':scope > .MuiStack-root');
             const all = stack ? Array.from(stack.querySelectorAll(':scope > a:not(.tnr-topnav)')) : [];
-            // With one TV section, Live TV and the Classics library leave the bar (TV covers them).
-            all.forEach((a) => a.toggleAttribute('data-tnr-merged', isMergedTv(hrefOf(a))));
+            // Pages a section has taken in (Live TV, the Classics libraries) leave the bar.
+            all.forEach((a) => a.toggleAttribute('data-tnr-merged', isMerged(hrefOf(a))));
             const links = all.filter((a) => !a.hasAttribute('data-tnr-merged'));
             // Ours go right after Live TV. When Live TV is folded into TV, they take its place:
             // after the last visible link before it (Music), measured on that visible link.
@@ -1447,93 +1451,137 @@
     });
 
     // =====================================================================
-    // One TV section: Surf | Guide | Classics
+    // Sections: TV (Surf | Guide | Classics) and Movies (Movies | Classics)
     // =====================================================================
     //
-    // Wraps rather than replaces: Guide is Jellyfin's own Live TV page and Classics is
-    // Jellyfin's page for one TV library, each with our tabs added to the start of the
-    // toolbar under the top bar (where the page's own "Shows" / "Programs" menu sits), and
-    // Surf gets the same bar drawn to match. Live TV and the Classics library leave the top
-    // bar and side menu; the TV link (our Surf TV link, renamed) stands for all three.
-    // WHY Surf first: it plays the same channels and opens one almost at once, where Live TV
-    // took 46 s; Live TV's own extras are the guide grid and recordings.
+    // A section is one top bar link standing for several pages, shown as tabs. They wrap
+    // rather than replace: Guide is Jellyfin's Live TV page, Classics and Movies are
+    // Jellyfin's pages for those libraries, each with our tabs added to the start of the
+    // toolbar under the top bar (where the page's own "Shows" / "Movies" menu sits). Surf is
+    // ours and gets the same bar drawn to match. The pages a section takes in leave the top
+    // bar, the side menu and My Media; the section's link stays lit on all its pages.
+    // WHY TV opens on Surf: it plays the same channels and opens one almost at once, where
+    // Live TV took 46 s; Live TV's own extras are the guide grid and recordings.
+    // In My Media, TV's tile is Jellyfin's Live TV tile renamed "TV" and opening Surf.
 
-    const TVS = { classicsId: null, hasGuide: true, loaded: false };
+    const SECT = { loaded: false, list: [] };
 
-    async function loadTvSection() {
+    async function loadSections() {
         try {
             const views = await api(`Users/${ApiClient.getCurrentUserId()}/Views`);
             const items = (views && views.Items) || [];
-            const want = TV_CLASSICS.trim().toLowerCase();
-            const lib = want && items.find((v) => (v.Name || '').trim().toLowerCase() === want);
-            TVS.classicsId = lib ? lib.Id : null;
-            TVS.hasGuide = items.some((v) => v.CollectionType === 'livetv');
-        } catch (e) { /* tabs fall back to what's known */ }
-        TVS.loaded = true;
-        injectTopBar(); injectTvTabs();
+            const named = (name, type) => {
+                const want = (name || '').trim().toLowerCase();
+                return want ? items.find((v) => (v.Name || '').trim().toLowerCase() === want && v.CollectionType === type) : null;
+            };
+            const libTab = (key, label, v, extra) => Object.assign({
+                key, label, libId: v.Id, href: `#/${v.CollectionType === 'movies' ? 'movies' : 'tv'}?topParentId=${v.Id}&collectionType=${v.CollectionType}`,
+                // A library's pages all carry its id; its items' detail pages don't, and get no tabs.
+                match: (h) => /^#\/(movies|tv)\?/.test(h) && h.includes('topParentId=' + v.Id),
+            }, extra);
+            const list = [];
+            if (TV_ON) {
+                const tabs = [{ key: 'surf', label: 'Surf', href: TV_ROUTE, ours: 'tv', match: (h) => h.startsWith(TV_ROUTE) }];
+                const guide = items.find((v) => v.CollectionType === 'livetv');
+                if (guide) tabs.push({ key: 'guide', label: 'Guide', libId: guide.Id, tile: 'tv', href: '#/livetv?collectionType=livetv', match: (h) => h.startsWith('#/livetv') });
+                const cls = named(TV_CLASSICS, 'tvshows');
+                if (cls) tabs.push(libTab('classics', 'Classics', cls));
+                list.push({ key: 'tv', tabs });
+            }
+            if (MOVIES_ON) {
+                const cls = named(MOVIES_CLASSICS, 'movies');
+                // "Movies" is the first other movie library, in the account's library order.
+                const main = cls && items.find((v) => v.CollectionType === 'movies' && v.Id !== cls.Id);
+                if (main) list.push({ key: 'movies', tabs: [libTab('movies', 'Movies', main, { main: true }), libTab('classics', 'Classics', cls)] });
+            }
+            SECT.list = list;
+        } catch (e) { /* no sections: everything stays as Jellyfin has it */ }
+        SECT.loaded = true;
+        injectTopBar(); injectSections();
     }
 
-    const isMergedTv = (href) => TV_ON && TVS.loaded && ((TVS.hasGuide && href.startsWith('#/livetv'))
-        || (!!TVS.classicsId && /^#\/tv\?/.test(href) && href.includes('topParentId=' + TVS.classicsId)));
-
-    function tvTabs() {
-        const tabs = [{ key: 'surf', label: 'Surf', href: TV_ROUTE }];
-        if (TVS.hasGuide) tabs.push({ key: 'guide', label: 'Guide', href: '#/livetv?collectionType=livetv' });
-        if (TVS.classicsId) tabs.push({ key: 'classics', label: 'Classics', href: `#/tv?topParentId=${TVS.classicsId}&collectionType=tvshows` });
-        return tabs;
-    }
-
-    // Which TV tab the address is on, or null.
-    function tvKind() {
-        const h = location.hash;
-        if (h.startsWith(TV_ROUTE)) return 'surf';
-        if (TVS.hasGuide && h.startsWith('#/livetv')) return 'guide';
-        if (TVS.classicsId && /^#\/tv\?/.test(h) && h.includes('topParentId=' + TVS.classicsId)) return 'classics';
+    // Pages a section has taken in: their links leave the bar, menus and My Media. The
+    // section's own page (Surf, or the Movies library) stays.
+    const sectionTabFor = (href) => {
+        for (const sec of SECT.list) for (const t of sec.tabs) if (t.match(href)) return { sec, t };
         return null;
-    }
+    };
+    const isMerged = (href) => { const hit = sectionTabFor(href); return !!hit && !hit.t.main && !hit.t.ours; };
 
-    function tvTabsEl(active) {
+    function sectionTabsEl(sec, active) {
         const nav = document.createElement('nav');
         nav.className = 'tnr-tvtabs';
-        nav.setAttribute('aria-label', 'TV');
-        nav.dataset.tab = active;
-        nav.innerHTML = tvTabs().map((t) => `<a class="tnr-tvtab${t.key === active ? ' on' : ''}" href="${t.href}"${t.key === active ? ' aria-current="page"' : ''} data-key="${t.key}">${t.label}</a>`).join('');
-        // Surf is our page: open it with go(), since a plain hash change to it makes Jellyfin
-        // draw "page not found". Guide and Classics are Jellyfin's, so their links just work.
-        nav.querySelector('[data-key="surf"]').addEventListener('click', go('tv'));
+        nav.setAttribute('aria-label', sec.key === 'tv' ? 'TV' : 'Movies');
+        nav.dataset.tab = sec.key + ':' + active;
+        nav.innerHTML = sec.tabs.map((t) => `<a class="tnr-tvtab${t.key === active ? ' on' : ''}" href="${t.href}"${t.key === active ? ' aria-current="page"' : ''} data-key="${t.key}">${t.label}</a>`).join('');
+        // Our pages open with go(): a plain hash change to one makes Jellyfin draw "page not
+        // found". Jellyfin's pages are ordinary links.
+        sec.tabs.filter((t) => t.ours).forEach((t) => nav.querySelector(`[data-key="${t.key}"]`).addEventListener('click', go(t.ours)));
         return nav;
     }
 
-    function injectTvTabs() {
-        if (!TV_ON || !TVS.loaded) return;
-        const kind = tvKind();
-        if (kind) document.body.dataset.tnrTv = kind; else delete document.body.dataset.tnrTv;
-        // Side menu: Live TV and the Classics library are reached through TV now.
-        document.querySelectorAll('.MuiDrawer-root a[href], .mainDrawer a[href]').forEach((a) => a.toggleAttribute('data-tnr-merged', isMergedTv(hrefOf(a))));
+    function injectSections() {
+        if (!SECT.loaded || !SECT.list.length) return;
+        const hit = sectionTabFor(location.hash);
+        // The section's link stays lit on all its pages (Jellyfin would light the hidden one).
+        const lit = !hit ? null : hit.sec.key === 'tv'
+            ? document.querySelector('.MuiAppBar-root .tnr-topnav[data-kind="tv"], .MuiAppBar-root .tnr-topicon[data-kind="tv"]')
+            : document.querySelector(`.MuiAppBar-root .MuiStack-root > a[href*="topParentId=${hit.sec.tabs[0].libId}"]`);
+        document.querySelectorAll('.MuiAppBar-root [data-tnr-lit]').forEach((a) => { if (a !== lit) a.removeAttribute('data-tnr-lit'); });
+        if (lit && !lit.hasAttribute('data-tnr-lit')) lit.setAttribute('data-tnr-lit', '');
+        // Side menu: the taken-in pages are reached through the section now.
+        document.querySelectorAll('.MuiDrawer-root a[href], .mainDrawer a[href]').forEach((a) => a.toggleAttribute('data-tnr-merged', isMerged(hrefOf(a))));
+        foldMyMedia();
         // Jellyfin's pages: the start of the second toolbar.
         const bar = document.querySelectorAll('.MuiAppBar-root > .MuiToolbar-root')[1];
-        document.querySelectorAll('.tnr-tvtabs[data-where="bar"]').forEach((n) => { if (n.parentNode !== bar || n.dataset.tab !== kind || S.active) n.remove(); });
-        if (kind && kind !== 'surf' && !S.active && bar && !bar.querySelector(':scope > .tnr-tvtabs')) {
-            const nav = tvTabsEl(kind);
+        const want = hit && !hit.t.ours && !S.active ? hit.sec.key + ':' + hit.t.key : null;
+        document.querySelectorAll('.tnr-tvtabs[data-where="bar"]').forEach((n) => { if (n.parentNode !== bar || n.dataset.tab !== want) n.remove(); });
+        if (want && bar && !bar.querySelector(':scope > .tnr-tvtabs')) {
+            const nav = sectionTabsEl(hit.sec, hit.t.key);
             nav.dataset.where = 'bar';
             bar.prepend(nav);
         }
         // Surf (ours): a bar of the same height and padding at the top of the page.
+        const tv = SECT.list.find((x) => x.key === 'tv');
         const page = document.getElementById(TV_PAGE_ID);
-        if (page && !page.querySelector(':scope > .tnr-tvtabs')) {
-            const nav = tvTabsEl('surf');
+        if (tv && page && !page.querySelector(':scope > .tnr-tvtabs')) {
+            const nav = sectionTabsEl(tv, 'surf');
             nav.classList.add('tnr-tvtabs-page');
             page.prepend(nav);
         }
-        if (page) {
-            const top = document.querySelector('.MuiAppBar-root > .MuiToolbar-root');
-            const strip = page.querySelector(':scope > .tnr-tvtabs');
-            if (top && strip) {
-                const cs = getComputedStyle(top);
-                strip.style.paddingLeft = cs.paddingLeft; strip.style.paddingRight = cs.paddingRight;
-            }
+        const strip = page && page.querySelector(':scope > .tnr-tvtabs');
+        const top = document.querySelector('.MuiAppBar-root > .MuiToolbar-root');
+        if (strip && top) {
+            const cs = getComputedStyle(top);
+            strip.style.paddingLeft = cs.paddingLeft; strip.style.paddingRight = cs.paddingRight;
         }
     }
+
+    // My Media on the home page: the taken-in libraries' tiles go, and Live TV's tile becomes
+    // "TV" and opens Surf. Both the big tiles and the "small" buttons some people pick.
+    function foldMyMedia() {
+        document.querySelectorAll('.homeSectionsContainer .card[data-collectiontype]:not(.tnr-season), .homeSectionsContainer a.homeLibraryButton:not(.tnr-season)').forEach((el) => {
+            const href = el.matches('a') ? hrefOf(el) : hrefOf(el.querySelector('a[href]') || el);
+            const hit = sectionTabFor(href);
+            const tile = hit && hit.t.tile;
+            el.toggleAttribute('data-tnr-merged', !!hit && !tile && isMerged(href));
+            if (!tile) return;
+            el.dataset.tnrTile = tile;
+            const label = el.querySelector('.cardText, .homeLibraryText');
+            if (label && label.textContent.trim() !== 'TV') label.textContent = 'TV';
+            const img = el.querySelector('.cardImageContainer');
+            if (img) img.setAttribute('aria-label', 'TV');
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+        const tile = e.target.closest('[data-tnr-tile="tv"]');
+        if (!tile) return;
+        e.preventDefault();
+        e.stopPropagation();
+        go('tv')();
+    }, true);
 
     // =====================================================================
     // Music page: Jellyfin's Music links open ours (music.js draws it)
@@ -1639,6 +1687,7 @@
         const card = proto.cloneNode(true);
         const href = `#/details?id=${t.id}&serverId=${encodeURIComponent(proto.dataset.serverid || ApiClient.serverId())}`;
         card.classList.add('tnr-season');
+        card.removeAttribute('data-tnr-merged'); delete card.dataset.tnrTile;
         // data-index points into the library list Jellyfin rendered; this card isn't in it.
         ['index', 'collectiontype', 'path', 'prefix'].forEach((k) => card.removeAttribute('data-' + k));
         Object.assign(card.dataset, { id: t.id, type: 'BoxSet', isfolder: 'true' });
@@ -1668,6 +1717,7 @@
     function seasonButton(proto, t) {
         const b = proto.cloneNode(true);
         b.classList.add('tnr-season');
+        b.removeAttribute('data-tnr-merged'); delete b.dataset.tnrTile;
         b.dataset.id = t.id;
         b.setAttribute('href', `#/details?id=${t.id}&serverId=${encodeURIComponent(ApiClient.serverId())}`);
         const icon = b.querySelector('.homeLibraryIcon');
@@ -1726,7 +1776,7 @@
             return;
         }
         if (MUSIC_ON) document.body.classList.add('tnr-music-on');
-        if (TV_ON) loadTvSection();
+        if (TV_ON || MOVIES_ON) loadSections();
         injectNav();
         injectTopBar();
         injectSeasonal();
@@ -1735,7 +1785,7 @@
         let pending = false;
         new MutationObserver(() => {
             if (pending) return; pending = true;
-            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectTvTabs(); });
+            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectSections(); });
         }).observe(document.body, { childList: true, subtree: true });
         // Rotating a phone or resizing the window changes how many dial numbers fit.
         let rz;

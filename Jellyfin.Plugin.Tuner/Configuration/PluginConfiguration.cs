@@ -117,6 +117,16 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Name of the TV library shown as the TV section's "Classics" tab. Empty: no such tab.</summary>
     public string TvClassicsLibrary { get; set; } = string.Empty;
 
+    /// <summary>
+    /// One Movies section: the Movies link gets tabs Movies | Classics, Classics being the movie
+    /// library named in <see cref="MoviesClassicsLibrary"/>, which leaves the top bar, side menu
+    /// and My Media. Both are Jellyfin's own pages with the tabs added.
+    /// </summary>
+    public bool MoviesSection { get; set; }
+
+    /// <summary>Name of the movie library shown as the Movies section's "Classics" tab.</summary>
+    public string MoviesClassicsLibrary { get; set; } = string.Empty;
+
     /// <summary>Kill switch: stop injecting the client script without uninstalling.</summary>
     public bool DisableInjection { get; set; }
 }
