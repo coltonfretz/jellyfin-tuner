@@ -78,6 +78,19 @@
                         <div class="fieldDescription">Anything shorter is treated as a single and left off the album shelves. It still shows up in Search and on the artist's page.</div>
                     </div>
 
+                    <h2>TV section</h2>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="TvSection" />
+                            <span>Put Surf TV, Live TV and one TV library under a single TV link</span>
+                        </label>
+                    </div>
+                    <div class="fieldDescription">TV opens Surf, with tabs for Guide (Jellyfin's Live TV page) and Classics (the library below). Live TV and that library leave the top bar and side menu. Their pages stay Jellyfin's own, with the tabs added on top.</div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="TvClassicsLibrary" label="Library for the Classics tab" />
+                        <div class="fieldDescription">The TV library's name exactly as it shows in Jellyfin, for example Classic TV &amp; Cartoons. Empty: no Classics tab.</div>
+                    </div>
+
                     <h2>My Media</h2>
                     <div class="inputContainer">
                         <input is="emby-input" type="text" id="Seasons" label="Seasonal collections" />
@@ -97,7 +110,7 @@
                     <div class="checkboxContainer">
                         <label>
                             <input is="emby-checkbox" type="checkbox" id="DisableInjection" />
-                            <span>Turn off the Radio, TV and Music pages without uninstalling</span>
+                            <span>Turn off everything Tuner adds to the web pages without uninstalling</span>
                         </label>
                     </div>
 
@@ -108,7 +121,7 @@
         <script type="text/javascript">
             (function () {
                 var pluginId = '6d5e2f2a-5308-427c-9e34-42892a8fe0cc';
-                var text = ['RadioM3uUrl', 'JamendoClientId', 'JamendoKeepFolder', 'DispatcharrUrl', 'HdhomerunUrl', 'AntennaHidden', 'AntennaNames', 'Seasons'];
+                var text = ['RadioM3uUrl', 'JamendoClientId', 'JamendoKeepFolder', 'DispatcharrUrl', 'HdhomerunUrl', 'AntennaHidden', 'AntennaNames', 'Seasons', 'TvClassicsLibrary'];
                 var page = document.querySelector('#TunerConfigPage');
 
                 page.addEventListener('pageshow', function () {
@@ -127,6 +140,7 @@
                         page.querySelector('#RotateSeconds').value = config.RotateSeconds || 120;
                         page.querySelector('#HideCollectionsLibrary').checked = config.HideCollectionsLibrary !== false;
                         page.querySelector('#MusicPage').checked = !!config.MusicPage;
+                        page.querySelector('#TvSection').checked = !!config.TvSection;
                         page.querySelector('#MusicMinSongs').value = config.MusicMinSongs || 4;
                         page.querySelector('#ShuffleLibraryTileDays').value = config.ShuffleLibraryTileDays == null ? 3 : config.ShuffleLibraryTileDays;
                         Dashboard.hideLoadingMsg();
@@ -146,6 +160,7 @@
                         config.RotateSeconds = Math.max(20, parseInt(page.querySelector('#RotateSeconds').value, 10) || 120);
                         config.HideCollectionsLibrary = page.querySelector('#HideCollectionsLibrary').checked;
                         config.MusicPage = page.querySelector('#MusicPage').checked;
+                        config.TvSection = page.querySelector('#TvSection').checked;
                         config.MusicMinSongs = Math.min(50, Math.max(1, parseInt(page.querySelector('#MusicMinSongs').value, 10) || 4));
                         var days = parseInt(page.querySelector('#ShuffleLibraryTileDays').value, 10);
                         config.ShuffleLibraryTileDays = isNaN(days) ? 3 : Math.max(0, days);

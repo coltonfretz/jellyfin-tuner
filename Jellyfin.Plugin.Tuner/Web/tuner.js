@@ -22,6 +22,11 @@
     // before the side menu and top bar are drawn. Radio then lives inside Music, as its last tab.
     const MUSIC_ON = !!document.querySelector('script[src*="Tuner/music.js"]');
     const music = () => (MUSIC_ON ? window.TunerMusic : null);
+    // "One TV section" (setting): Surf, Jellyfin's Live TV ("Guide") and one TV library
+    // ("Classics") become tabs of a single TV link. Read from our own script tag, like Music.
+    const ME = document.currentScript;
+    const TV_ON = !!(ME && ME.dataset.tvSection);
+    const TV_CLASSICS = (ME && ME.dataset.tvClassics) || '';
     const PAGE_ID = 'tnr-radio-page';
     const NOWPLAYING_MS = 20000;
     const FAV_COLOR = '#B8860B';
@@ -895,7 +900,7 @@
 
     const PAGES = {
         radio: { route: ROUTE, id: PAGE_ID, title: 'Radio', loading: 'Loading stations…' },
-        tv: { route: TV_ROUTE, id: TV_PAGE_ID, title: 'Surf TV', loading: 'Loading channels…' },
+        tv: { route: TV_ROUTE, id: TV_PAGE_ID, title: TV_ON ? 'TV' : 'Surf TV', loading: 'Loading channels…' },
         music: { route: MUSIC_ROUTE, id: 'tnr-music-page', title: 'Music', loading: 'Loading your music…' },
     };
 
@@ -983,6 +988,9 @@
         S.active = null; S.pageVisible = false; S.prevPage = null;
         stopLocationWatcher();
         renderMini();
+        // Back from Surf to Guide or Classics: Jellyfin shows its kept page again without
+        // redrawing anything, so the body observer never fires; put the TV tabs back now.
+        if (TV_ON) injectTvTabs();
     }
 
     // jellyfin-web navigates with pushState, which fires no event, so poll the URL
@@ -1027,7 +1035,7 @@
     // (which also gives the crowded top bar one link less to fit).
     const ENTRIES = [
         { kind: 'radio', label: 'Radio', material: 'radio' },
-        { kind: 'tv', label: 'Surf TV', material: 'live_tv' },
+        { kind: 'tv', label: TV_ON ? 'TV' : 'Surf TV', material: 'live_tv' },
     ].filter((en) => !(MUSIC_ON && en.kind === 'radio'));
 
     // Jellyfin 12 ships two web layouts. The classic one has .mainDrawer-scrollContainer;
@@ -1112,8 +1120,8 @@
     const jellyfinMore = (stack) => stack.querySelector(':scope > button[aria-controls="user-view-overflow-menu"]');
     function planTopNav(bar, stack, links, model) {
         const gap = parseFloat(getComputedStyle(stack).columnGap) || 0;
-        const live = links.findIndex((a) => hrefOf(a).startsWith('#/livetv'));
-        const movable = live >= 0 ? links.length - live - 1 : 0;   // libraries after Live TV
+        const live = links.indexOf(model);
+        const movable = live >= 0 ? links.length - live - 1 : 0;   // libraries after where ours go
         const jfMore = jellyfinMore(stack);
         const others = Array.from(stack.children).filter((c) => c.tagName !== 'A' && c !== jfMore && !c.classList.contains('tnr-more'));
         const w = (label) => oneLineWidth(model, label);   // every bar link has the same padding and icon
@@ -1183,6 +1191,7 @@
         const list = document.querySelector('#user-view-overflow-menu ul[role="menu"]');
         if (!list) return false;
         list.querySelectorAll('.tnr-moreitem').forEach((n) => n.remove());
+        list.querySelectorAll('a[role="menuitem"]').forEach((a) => { if (isMergedTv(hrefOf(a))) a.style.display = 'none'; });
         const proto = list.querySelector('a[role="menuitem"]:not(.tnr-moreitem)');
         // Tucked links come before everything Jellyfin already put in its More (they sat
         // left of it in the bar), so they go at the top, in bar order.
@@ -1305,9 +1314,17 @@
         const bar = document.querySelector('.MuiAppBar-root .MuiToolbar-root');
         if (bar) {
             const stack = bar.querySelector(':scope > .MuiStack-root');
-            const links = stack ? Array.from(stack.querySelectorAll(':scope > a:not(.tnr-topnav)')) : [];
-            const model = links.find((a) => hrefOf(a).startsWith('#/livetv')) || links[1];
-            const jfWide = links.some((a) => hrefOf(a).startsWith('#/home?tab') || hrefOf(a).startsWith('#/livetv'));
+            const all = stack ? Array.from(stack.querySelectorAll(':scope > a:not(.tnr-topnav)')) : [];
+            // With one TV section, Live TV and the Classics library leave the bar (TV covers them).
+            all.forEach((a) => a.toggleAttribute('data-tnr-merged', isMergedTv(hrefOf(a))));
+            const links = all.filter((a) => !a.hasAttribute('data-tnr-merged'));
+            // Ours go right after Live TV. When Live TV is folded into TV, they take its place:
+            // after the last visible link before it (Music), measured on that visible link.
+            const liveLink = all.find((a) => hrefOf(a).startsWith('#/livetv'));
+            const place = liveLink || links[1];
+            const model = liveLink && !liveLink.hasAttribute('data-tnr-merged') ? liveLink
+                : (liveLink ? links.filter((a) => a.compareDocumentPosition(liveLink) & Node.DOCUMENT_POSITION_FOLLOWING).pop() : null) || links[1];
+            const jfWide = all.some((a) => hrefOf(a).startsWith('#/home?tab') || hrefOf(a).startsWith('#/livetv'));
             const plan = jfWide && model ? planTopNav(bar, stack, links, model) : { text: false, tucked: [] };
             // Tuck (or un-tuck) Jellyfin's trailing links. A data attribute, not a class:
             // React rewrites className on re-render but leaves attributes it doesn't own.
@@ -1325,11 +1342,12 @@
             if (jfMore) hookJellyfinMore(jfMore);
             if (plan.text) {
                 document.querySelectorAll('.tnr-topicon').forEach((n) => n.remove());
-                let anchor = model;
+                let anchor = place || model;
                 ENTRIES.forEach((en) => {
                     let a = stack.querySelector(`.tnr-topnav[data-kind="${en.kind}"]`);
                     if (!a) {
                         a = model.cloneNode(true);
+                        ['data-tnr-merged', 'data-tnr-tucked', 'data-tnr-compact'].forEach((k) => a.removeAttribute(k));
                         a.classList.remove('MuiButton-textPrimary', 'MuiButton-colorPrimary');
                         a.classList.add('tnr-topnav');
                         a.dataset.kind = en.kind;
@@ -1427,6 +1445,95 @@
         }
         if (fn) { e.preventDefault(); fn(); }
     });
+
+    // =====================================================================
+    // One TV section: Surf | Guide | Classics
+    // =====================================================================
+    //
+    // Wraps rather than replaces: Guide is Jellyfin's own Live TV page and Classics is
+    // Jellyfin's page for one TV library, each with our tabs added to the start of the
+    // toolbar under the top bar (where the page's own "Shows" / "Programs" menu sits), and
+    // Surf gets the same bar drawn to match. Live TV and the Classics library leave the top
+    // bar and side menu; the TV link (our Surf TV link, renamed) stands for all three.
+    // WHY Surf first: it plays the same channels and opens one almost at once, where Live TV
+    // took 46 s; Live TV's own extras are the guide grid and recordings.
+
+    const TVS = { classicsId: null, hasGuide: true, loaded: false };
+
+    async function loadTvSection() {
+        try {
+            const views = await api(`Users/${ApiClient.getCurrentUserId()}/Views`);
+            const items = (views && views.Items) || [];
+            const want = TV_CLASSICS.trim().toLowerCase();
+            const lib = want && items.find((v) => (v.Name || '').trim().toLowerCase() === want);
+            TVS.classicsId = lib ? lib.Id : null;
+            TVS.hasGuide = items.some((v) => v.CollectionType === 'livetv');
+        } catch (e) { /* tabs fall back to what's known */ }
+        TVS.loaded = true;
+        injectTopBar(); injectTvTabs();
+    }
+
+    const isMergedTv = (href) => TV_ON && TVS.loaded && ((TVS.hasGuide && href.startsWith('#/livetv'))
+        || (!!TVS.classicsId && /^#\/tv\?/.test(href) && href.includes('topParentId=' + TVS.classicsId)));
+
+    function tvTabs() {
+        const tabs = [{ key: 'surf', label: 'Surf', href: TV_ROUTE }];
+        if (TVS.hasGuide) tabs.push({ key: 'guide', label: 'Guide', href: '#/livetv?collectionType=livetv' });
+        if (TVS.classicsId) tabs.push({ key: 'classics', label: 'Classics', href: `#/tv?topParentId=${TVS.classicsId}&collectionType=tvshows` });
+        return tabs;
+    }
+
+    // Which TV tab the address is on, or null.
+    function tvKind() {
+        const h = location.hash;
+        if (h.startsWith(TV_ROUTE)) return 'surf';
+        if (TVS.hasGuide && h.startsWith('#/livetv')) return 'guide';
+        if (TVS.classicsId && /^#\/tv\?/.test(h) && h.includes('topParentId=' + TVS.classicsId)) return 'classics';
+        return null;
+    }
+
+    function tvTabsEl(active) {
+        const nav = document.createElement('nav');
+        nav.className = 'tnr-tvtabs';
+        nav.setAttribute('aria-label', 'TV');
+        nav.dataset.tab = active;
+        nav.innerHTML = tvTabs().map((t) => `<a class="tnr-tvtab${t.key === active ? ' on' : ''}" href="${t.href}"${t.key === active ? ' aria-current="page"' : ''} data-key="${t.key}">${t.label}</a>`).join('');
+        // Surf is our page: open it with go(), since a plain hash change to it makes Jellyfin
+        // draw "page not found". Guide and Classics are Jellyfin's, so their links just work.
+        nav.querySelector('[data-key="surf"]').addEventListener('click', go('tv'));
+        return nav;
+    }
+
+    function injectTvTabs() {
+        if (!TV_ON || !TVS.loaded) return;
+        const kind = tvKind();
+        if (kind) document.body.dataset.tnrTv = kind; else delete document.body.dataset.tnrTv;
+        // Side menu: Live TV and the Classics library are reached through TV now.
+        document.querySelectorAll('.MuiDrawer-root a[href], .mainDrawer a[href]').forEach((a) => a.toggleAttribute('data-tnr-merged', isMergedTv(hrefOf(a))));
+        // Jellyfin's pages: the start of the second toolbar.
+        const bar = document.querySelectorAll('.MuiAppBar-root > .MuiToolbar-root')[1];
+        document.querySelectorAll('.tnr-tvtabs[data-where="bar"]').forEach((n) => { if (n.parentNode !== bar || n.dataset.tab !== kind || S.active) n.remove(); });
+        if (kind && kind !== 'surf' && !S.active && bar && !bar.querySelector(':scope > .tnr-tvtabs')) {
+            const nav = tvTabsEl(kind);
+            nav.dataset.where = 'bar';
+            bar.prepend(nav);
+        }
+        // Surf (ours): a bar of the same height and padding at the top of the page.
+        const page = document.getElementById(TV_PAGE_ID);
+        if (page && !page.querySelector(':scope > .tnr-tvtabs')) {
+            const nav = tvTabsEl('surf');
+            nav.classList.add('tnr-tvtabs-page');
+            page.prepend(nav);
+        }
+        if (page) {
+            const top = document.querySelector('.MuiAppBar-root > .MuiToolbar-root');
+            const strip = page.querySelector(':scope > .tnr-tvtabs');
+            if (top && strip) {
+                const cs = getComputedStyle(top);
+                strip.style.paddingLeft = cs.paddingLeft; strip.style.paddingRight = cs.paddingRight;
+            }
+        }
+    }
 
     // =====================================================================
     // Music page: Jellyfin's Music links open ours (music.js draws it)
@@ -1619,6 +1726,7 @@
             return;
         }
         if (MUSIC_ON) document.body.classList.add('tnr-music-on');
+        if (TV_ON) loadTvSection();
         injectNav();
         injectTopBar();
         injectSeasonal();
@@ -1627,7 +1735,7 @@
         let pending = false;
         new MutationObserver(() => {
             if (pending) return; pending = true;
-            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); });
+            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectTvTabs(); });
         }).observe(document.body, { childList: true, subtree: true });
         // Rotating a phone or resizing the window changes how many dial numbers fit.
         let rz;

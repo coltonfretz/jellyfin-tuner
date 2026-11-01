@@ -85,9 +85,14 @@ public class ScriptInjectionStartupFilter : IStartupFilter
             {
                 var v = Uri.EscapeDataString(Plugin.ClientVersion);
                 // Relative URLs so a base-url prefix (e.g. /jellyfin/web/) still resolves.
-                var tags = $"<link rel=\"stylesheet\" href=\"../Tuner/client.css?v={v}\">"
-                    + $"<script src=\"..{Marker}?v={v}\" defer></script>";
                 var config = Plugin.Instance?.Configuration;
+                // Settings tuner.js needs before it draws the top bar ride on its own tag
+                // (read from document.currentScript), so no request has to come first.
+                var tv = config?.TvSection == true
+                    ? $" data-tv-section=\"1\" data-tv-classics=\"{System.Net.WebUtility.HtmlEncode(config.TvClassicsLibrary ?? string.Empty)}\""
+                    : string.Empty;
+                var tags = $"<link rel=\"stylesheet\" href=\"../Tuner/client.css?v={v}\">"
+                    + $"<script src=\"..{Marker}?v={v}\"{tv} defer></script>";
                 if (config?.RotateLatestRows == true)
                 {
                     // Settings ride on the tag as data attributes: the script reads them from

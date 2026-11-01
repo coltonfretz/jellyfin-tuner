@@ -106,6 +106,17 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public int MusicMinSongs { get; set; } = 4;
 
+    /// <summary>
+    /// One TV section: the top bar's TV link opens Surf, with tabs for Jellyfin's Live TV page
+    /// ("Guide") and the TV library named in <see cref="TvClassicsLibrary"/> ("Classics").
+    /// Live TV and that library leave the top bar and side menu. Jellyfin's own pages are kept
+    /// (guide grid, recordings, show pages); only the tabs are added to them.
+    /// </summary>
+    public bool TvSection { get; set; }
+
+    /// <summary>Name of the TV library shown as the TV section's "Classics" tab. Empty: no such tab.</summary>
+    public string TvClassicsLibrary { get; set; } = string.Empty;
+
     /// <summary>Kill switch: stop injecting the client script without uninstalling.</summary>
     public bool DisableInjection { get; set; }
 }

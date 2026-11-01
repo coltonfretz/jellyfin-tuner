@@ -113,6 +113,22 @@ body.tnr-page-active .backdropContainer { display: none !important; }
    them, and React owns their class list. Opening Music from one left it showing through
    ours (Sarah, 2026-11-01). Hidden by rule instead, for as long as our page is up. */
 body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; }
+/* One TV section: Live TV and the Classics library are reached through the TV link's tabs,
+   so they leave the top bar and the side menu. */
+.MuiAppBar-root a[data-tnr-merged], .MuiDrawer-root a[data-tnr-merged], .mainDrawer a[data-tnr-merged] { display: none !important; }
+body[data-tnr-tv] .tnr-topnav[data-kind="tv"], body[data-tnr-tv] .tnr-topicon[data-kind="tv"] {
+  color: var(--jf-palette-primary-main, #00a4dc) !important; }
+/* Surf | Guide | Classics. On Jellyfin's pages they sit at the start of the toolbar under the
+   top bar, before the page's own menu; on Surf, a bar of the same size takes that place. */
+.tnr-tvtabs { display: flex; align-items: stretch; flex-shrink: 0; height: 48px; margin-right: 1em; padding-right: 1em;
+  border-right: 1px solid rgba(255, 255, 255, .12); box-sizing: border-box; }
+.tnr-tvtab { display: flex; align-items: center; padding: 0 .8em; color: rgba(255, 255, 255, .62); text-decoration: none;
+  font-size: 1rem; border-bottom: 2px solid transparent; white-space: nowrap; }
+.tnr-tvtab:first-child { padding-left: 0; }
+.tnr-tvtab:hover { color: #fff; }
+.tnr-tvtab.on { color: #fff; border-bottom-color: var(--jf-palette-primary-main, #00a4dc); }
+.tnr-tvtabs-page { margin: 0; border-right: 0; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+
 /* Libraries moved out of the bar to make room for ours; they're offered in "More". */
 .MuiAppBar-root a[data-tnr-tucked] { display: none !important; }
 .MuiAppBar-root .tnr-topicon[data-tnr-hidden] { display: none !important; }

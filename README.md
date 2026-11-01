@@ -12,6 +12,7 @@ Adds **Radio** and **Surf TV** pages to the Jellyfin web UI, an optional simpler
 - **Radio > Jamendo:** Creative Commons music from Jamendo, one track after another per genre, with skip and **Keep**. Keep saves the MP3 into your music library, only when the artist allows downloads.
 - **Surf TV:** flip through channels like cable. Free streaming channels from **Dispatcharr**, and over-the-air channels from an **HDHomeRun** tuner. Up/down changes channel, type a number to jump, L goes back to the last channel, F is full screen.
 - **Music page (optional):** the Music links open a simpler page with four tabs. **Search** has a search box and a tile for each genre. **Catalog** has a daily Spotlight album, your playlists, a row per decade, a few genre-and-decade shelves that change every day ("2010s Hip Hop"), and everything A to Z by album or artist. **Now Playing** shows the song with big cover art and what's up next. **Radio** is the Radio page, moved in from the top bar. Jellyfin's own music page stays one click away under **Classic view**. See [Music page](#music-page).
+- **TV section (optional):** one **TV** link for Surf TV, Jellyfin's Live TV and one TV library of your choice, as tabs: **Surf**, **Guide** and **Classics**. Live TV and that library leave the top bar and side menu. Guide and Classics are Jellyfin's own pages with the tabs added, so the guide grid, recordings and show pages all stay.
 - **Home page:** the Recently Added rows load a longer list and slide to the next set of posters every couple of minutes, and Recently Added in Music shows at most three albums per artist.
 - **My Media:** a seasonal tile (a collection that only shows up between two dates each year, Halloween by default), and library tiles that get a fresh background picture every few days.
 
@@ -50,6 +51,7 @@ Then open **Dashboard > Plugins > Tuner** to set it up, and reload the web UI.
 | Hide the Collections library | Keeps the all-year Collections tile out of everyone's My Media, so seasonal collections only show in season. |
 | Library tile pictures | Days between new pictures for each library's tile, 0 for never. Set it to 0 if you uploaded your own library pictures, or they'll be replaced. |
 | Music page | On/off (off by default, since it takes over the Music links). Also the fewest songs for something to count as an album (4): shorter releases are treated as singles and left off the album shelves, but Search and the artist and genre pages still show them. |
+| TV section | On/off (off by default), and the name of the TV library for the Classics tab (empty: no Classics tab). |
 | Turn off the pages | Stops adding Tuner to the web UI without uninstalling. |
 
 ### Station list
