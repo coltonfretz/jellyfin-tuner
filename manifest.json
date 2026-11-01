@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.2.0",
+        "changelog": "Surf shares busy antenna tuners: skips channels that can't start, marks them, names the ones you can join; unique stream tickets",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v1.0.2.0/tuner_1.0.2.0.zip",
+        "checksum": "5782a3106b6f1564780f1f6c1711d97a",
+        "timestamp": "2026-11-01T19:01:41Z"
+      },
+      {
         "version": "1.0.0.0",
         "changelog": "Now named Jellyfin-Tuned. Settings split into tabs (Radio & TV, Layout, Home), new Request link to Seerr or Jellyseerr",
         "targetAbi": "12.2.0.0",
