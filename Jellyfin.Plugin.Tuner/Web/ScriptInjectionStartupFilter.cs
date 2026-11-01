@@ -95,6 +95,15 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     sections += $" data-movies-section=\"1\" data-movies-classics=\"{System.Net.WebUtility.HtmlEncode(config.MoviesClassicsLibrary ?? string.Empty)}\"";
                 }
 
+                // Only http(s) addresses: this ends up as a link's href, and a javascript: URL
+                // typed into the setting would run in every user's page.
+                var requestUrl = config?.RequestUrl?.Trim() ?? string.Empty;
+                if (Uri.TryCreate(requestUrl, UriKind.Absolute, out var requestUri)
+                    && (requestUri.Scheme == Uri.UriSchemeHttps || requestUri.Scheme == Uri.UriSchemeHttp))
+                {
+                    sections += $" data-request-url=\"{System.Net.WebUtility.HtmlEncode(requestUri.AbsoluteUri)}\"";
+                }
+
                 // Relative URLs so a base-url prefix (e.g. /jellyfin/web/) still resolves.
                 var tags = $"<link rel=\"stylesheet\" href=\"../Tuner/client.css?v={v}\">"
                     + $"<script src=\"..{Marker}?v={v}\"{sections} defer></script>";

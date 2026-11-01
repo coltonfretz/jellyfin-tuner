@@ -127,6 +127,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Name of the movie library shown as the Movies section's "Classics" tab.</summary>
     public string MoviesClassicsLibrary { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Address of a request site (Seerr or Jellyseerr). Set: a "Request" link joins the top bar
+    /// and side menu and opens it in the browser. Empty: no link.
+    /// </summary>
+    public string RequestUrl { get; set; } = string.Empty;
+
     /// <summary>Kill switch: stop injecting the client script without uninstalling.</summary>
     public bool DisableInjection { get; set; }
 }

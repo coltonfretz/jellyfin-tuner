@@ -14,6 +14,7 @@ Adds **Radio** and **Surf TV** pages to the Jellyfin web UI, an optional simpler
 - **Music page (optional):** the Music links open a simpler page with four tabs. **Search** has a search box and a tile for each genre. **Catalog** has a daily Spotlight album, your playlists, a row per decade, a few genre-and-decade shelves that change every day ("2010s Hip Hop"), and everything A to Z by album or artist. **Now Playing** shows the song with big cover art and what's up next. **Radio** is the Radio page, moved in from the top bar. Jellyfin's own music page stays one click away under **Classic view**. See [Music page](#music-page).
 - **TV section (optional):** one **TV** link for Surf TV, Jellyfin's Live TV and one TV library of your choice, as tabs: **Surf**, **Guide** and **Classics**. Live TV and that library leave the top bar and side menu, and in My Media the Live TV tile becomes TV, with a backdrop from one of your shows (a different one each day). The home page's Live TV row becomes TV too: its buttons are Surf, Guide and Classics, and an On Now card opens Surf on that channel. Guide and Classics are Jellyfin's own pages with the tabs added, so the guide grid, recordings and show pages all stay.
 - **Movies section (optional):** the same idea for a second movie library: the Movies link gets tabs **Movies** and **Classics**, and that library leaves the top bar, side menu and My Media.
+- **Request link (optional):** a **Request** link in the top bar and side menu that opens your Seerr or Jellyseerr site in a new tab, so nobody has to remember its address. The desktop app opens it in the system browser.
 - **Home page:** the Recently Added rows load a longer list and slide to the next set of posters every couple of minutes, and Recently Added in Music shows at most three albums per artist.
 - **My Media:** a seasonal tile (a collection that only shows up between two dates each year, Halloween by default), and library tiles that get a fresh background picture every few days.
 
@@ -54,6 +55,7 @@ Then open **Dashboard > Plugins > Tuner** to set it up, and reload the web UI.
 | Music page | On/off (off by default, since it takes over the Music links). Also the fewest songs for something to count as an album (4): shorter releases are treated as singles and left off the album shelves, but Search and the artist and genre pages still show them. |
 | TV section | On/off (off by default), and the name of the TV library for the Classics tab (empty: no Classics tab). |
 | Movies section | On/off (off by default), and the name of the movie library for the Classics tab. |
+| Request site address | Your Seerr or Jellyseerr address (http or https). Empty (the default): no Request link. |
 | Turn off the pages | Stops adding Tuner to the web UI without uninstalling. |
 
 ### Station list
@@ -94,7 +96,7 @@ Turn it on in the settings and reload the web UI. Every Music link (top bar, sid
 
 ## Top bar
 
-Radio and Surf TV sit in the top bar right after Live TV. Jellyfin decides from the window size whether the bar shows text links or icons, without knowing about the extra two, so Tuner measures what fits and, in order:
+Radio and Surf TV (and Request, when set) sit in the top bar right after Live TV. Jellyfin decides from the window size whether the bar shows text links or icons, without knowing about the extra two, so Tuner measures what fits and, in order:
 
 1. Shows everything as text.
 2. Moves the libraries after Live TV into **More**, one at a time.

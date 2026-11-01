@@ -104,6 +104,12 @@
                         <div class="fieldDescription">The movie library's name exactly as it shows in Jellyfin, for example Classic Movies.</div>
                     </div>
 
+                    <h2>Requests</h2>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="RequestUrl" label="Request site address" />
+                        <div class="fieldDescription">Your Seerr or Jellyseerr address, for example https://requests.example.com. Set: a Request link joins the top bar and side menu and opens it in a new browser tab (the desktop app opens it in your browser). Empty: no link.</div>
+                    </div>
+
                     <h2>My Media</h2>
                     <div class="inputContainer">
                         <input is="emby-input" type="text" id="Seasons" label="Seasonal collections" />
@@ -134,7 +140,7 @@
         <script type="text/javascript">
             (function () {
                 var pluginId = '6d5e2f2a-5308-427c-9e34-42892a8fe0cc';
-                var text = ['RadioM3uUrl', 'JamendoClientId', 'JamendoKeepFolder', 'DispatcharrUrl', 'HdhomerunUrl', 'AntennaHidden', 'AntennaNames', 'Seasons', 'TvClassicsLibrary', 'MoviesClassicsLibrary'];
+                var text = ['RadioM3uUrl', 'JamendoClientId', 'JamendoKeepFolder', 'DispatcharrUrl', 'HdhomerunUrl', 'AntennaHidden', 'AntennaNames', 'Seasons', 'TvClassicsLibrary', 'MoviesClassicsLibrary', 'RequestUrl'];
                 var page = document.querySelector('#TunerConfigPage');
 
                 page.addEventListener('pageshow', function () {

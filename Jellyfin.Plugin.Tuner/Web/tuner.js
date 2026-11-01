@@ -31,6 +31,9 @@
     // being the movie library named here.
     const MOVIES_ON = !!(ME && ME.dataset.moviesSection);
     const MOVIES_CLASSICS = (ME && ME.dataset.moviesClassics) || '';
+    // "Request site address" (setting): a Request link to Seerr. The server only passes
+    // http(s) addresses through.
+    const REQUEST_URL = (ME && ME.dataset.requestUrl) || '';
     const PAGE_ID = 'tnr-radio-page';
     const NOWPLAYING_MS = 20000;
     const FAV_COLOR = '#B8860B';
@@ -1017,13 +1020,26 @@
         else if (S.active) hidePage();
     }
 
+    // Where an entry's link points: one of our pages, or (Request) the request site.
+    const entryHref = (kind) => (kind === 'request' ? REQUEST_URL : PAGES[kind].route);
+
     function go(kind) {
         return (e) => {
             if (e) e.preventDefault();
+            if (kind === 'request') { openRequests(); return; }
             const r = PAGES[kind].route;
             if (location.hash !== r) history.pushState({ page: 'tuner-' + kind }, PAGES[kind].title, r);
             showPage(kind);
         };
+    }
+
+    // The request site is another website, so it opens beside Jellyfin rather than in place
+    // of it (whatever is playing keeps playing). The desktop app's engine has no new-window
+    // support, so window.open does nothing there; its NativeShell.openUrl hands the address
+    // to the system browser instead.
+    function openRequests() {
+        if (window.NativeShell && typeof window.NativeShell.openUrl === 'function') window.NativeShell.openUrl(REQUEST_URL, '_blank');
+        else window.open(REQUEST_URL, '_blank', 'noopener');
     }
 
     // =====================================================================
@@ -1034,13 +1050,15 @@
     const ICONS = {
         radio: 'M3.24 6.15C2.51 6.43 2 7.17 2 8v12c0 1.1.89 2 2 2h16c1.11 0 2-.9 2-2V8c0-1.11-.89-2-2-2H8.3l8.26-3.34L15.88 1zM7 20c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3m13-8h-2v-2h-2v2H4V8h16z',
         tv: 'M21 3H3c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.11-.9-2-2-2m0 14H3V5h18zM16 11l-7 4V7z',
+        request: 'M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8',
     };
     // With the Music page on, Radio is a tab inside Music and leaves the menu and top bar
     // (which also gives the crowded top bar one link less to fit).
     const ENTRIES = [
         { kind: 'radio', label: 'Radio', material: 'radio' },
         { kind: 'tv', label: TV_ON ? 'TV' : 'Surf TV', material: 'live_tv' },
-    ].filter((en) => !(MUSIC_ON && en.kind === 'radio'));
+        { kind: 'request', label: 'Request', material: 'add_circle_outline' },
+    ].filter((en) => !(MUSIC_ON && en.kind === 'radio') && !(en.kind === 'request' && !REQUEST_URL));
 
     // Jellyfin 12 ships two web layouts. The classic one has .mainDrawer-scrollContainer;
     // the newer one keeps that element in the DOM but hidden, and shows an MUI drawer
@@ -1073,8 +1091,8 @@
         section.dataset.v = '2';
         section.innerHTML = (t.kind === 'mui' ? '<div class="tnr-nav-head">Tuner</div>' : '<h3 class="sidebarHeader">Tuner</h3>')
             + ENTRIES.map((en) => (t.kind === 'mui'
-                ? `<a class="tnr-nav-link" data-kind="${en.kind}" href="${PAGES[en.kind].route}"><span class="material-icons" aria-hidden="true">${en.material}</span><span>${en.label}</span></a>`
-                : `<a is="emby-linkbutton" data-kind="${en.kind}" class="navMenuOption lnkMediaFolder emby-button" href="${PAGES[en.kind].route}">
+                ? `<a class="tnr-nav-link" data-kind="${en.kind}" href="${entryHref(en.kind)}"><span class="material-icons" aria-hidden="true">${en.material}</span><span>${en.label}</span></a>`
+                : `<a is="emby-linkbutton" data-kind="${en.kind}" class="navMenuOption lnkMediaFolder emby-button" href="${entryHref(en.kind)}">
                        <span class="material-icons navMenuOptionIcon" aria-hidden="true">${en.material}</span>
                        <span class="sectionName navMenuOptionText">${en.label}</span></a>`)).join('');
         section.querySelectorAll('a').forEach((a) => a.addEventListener('click', (e) => { go(a.dataset.kind)(e); closeDrawer(t.kind); }));
@@ -1188,7 +1206,7 @@
         // Our icons when a crowded phone bar hid them (see injectTopBar). They open with go(),
         // not the href: a plain hash change makes Jellyfin render its "Page not found".
         const ours = Array.from(document.querySelectorAll('.MuiAppBar-root .tnr-topicon[data-tnr-hidden]'))
-            .map((b) => ({ href: PAGES[b.dataset.kind].route, label: b.getAttribute('aria-label'), svg: b.querySelector('svg'), kind: b.dataset.kind }));
+            .map((b) => ({ href: entryHref(b.dataset.kind), label: b.getAttribute('aria-label'), svg: b.querySelector('svg'), kind: b.dataset.kind }));
         return jf.concat(ours);
     }
     function fillJellyfinMore() {
@@ -1355,7 +1373,7 @@
                         a.classList.remove('MuiButton-textPrimary', 'MuiButton-colorPrimary');
                         a.classList.add('tnr-topnav');
                         a.dataset.kind = en.kind;
-                        a.setAttribute('href', PAGES[en.kind].route);
+                        a.setAttribute('href', entryHref(en.kind));
                         const icon = a.querySelector('.MuiButton-startIcon');
                         if (icon) icon.innerHTML = svgIcon(en.kind);
                         Array.from(a.childNodes).filter((n) => n.nodeType === 3).forEach((n) => n.remove());
@@ -1376,7 +1394,7 @@
                         b.dataset.kind = en.kind;
                         b.setAttribute('aria-label', en.label);
                         b.setAttribute('title', en.label);
-                        if (b.tagName === 'A') b.setAttribute('href', PAGES[en.kind].route);
+                        if (b.tagName === 'A') b.setAttribute('href', entryHref(en.kind));
                         const path = b.querySelector('path');
                         if (path) path.setAttribute('d', ICONS[en.kind]);
                         const svg = b.querySelector('svg');
