@@ -42,6 +42,22 @@
     const INDEX_TTL = 30 * 60 * 1000;
     const NP_POLL_MS = 2000;
     const LETTERS = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    // Genre tile colors: the colors the Radio dial uses for its genres on this server (from
+    // the station list), so a genre looks the same on both pages, and picked for how the
+    // genre feels rather than at random (Sarah's ask, 2026-11-01). Keys are the genre name
+    // in lower case with everything but letters and digits removed ("R&B" -> "rb").
+    const RADIO_COLORS = ['#8B1E2D', '#2F2F2F', '#4A2C6F', '#9C4A1A', '#1F4E79', '#00695C', '#AD1457', '#8D6E00',
+        '#0277BD', '#4E6A78', '#E64A19', '#6D4C41', '#556B2F', '#283593', '#006064', '#2E7D32'];
+    const GENRE_FEEL = {
+        alternative: '#00695C', indie: '#00695C', electronic: '#0277BD', dance: '#0277BD', edm: '#0277BD', house: '#0277BD',
+        emo: '#AD1457', folk: '#556B2F', hiphop: '#8D6E00', rap: '#8D6E00', jazz: '#283593', metal: '#2F2F2F',
+        metalcore: '#8B1E2D', heavymetal: '#4A2C6F', hardrock: '#9C4A1A', pop: '#E64A19', punk: '#8B1E2D',
+        rb: '#4A2C6F', rnb: '#4A2C6F', soulfunk: '#6D4C41', soul: '#6D4C41', funk: '#6D4C41', rock: '#1F4E79',
+        blues: '#4E6A78', chill: '#4E6A78', lofi: '#4E6A78', ambient: '#4E6A78', classical: '#006064',
+        reggae: '#2E7D32', latin: '#2E7D32', country: '#9C4A1A', soundtrack: '#2F2F2F', christiangospel: '#4A2C6F',
+        gospel: '#4A2C6F', christian: '#4A2C6F', comedy: '#E64A19', jpopkpop: '#AD1457', kpop: '#AD1457', jpop: '#AD1457',
+        world: '#00695C',
+    };
     const COLORS = ['#7a2a3e', '#5b2a86', '#22506b', '#8a6d2a', '#2a6b5e', '#6b2238', '#46306b', '#6b4a22',
         '#2d4f7a', '#3d5a2a', '#6b2a5e', '#4f4f2d', '#2a5e3d', '#7a3e2a', '#2d2d4f', '#5e2a2a'];
 
@@ -69,6 +85,18 @@
     const load = (k, d) => { try { const v = localStorage.getItem('tuner.music.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
     const hashOf = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0; return h >>> 0; };
     const colorOf = (s) => COLORS[hashOf(String(s)) % COLORS.length];
+    // Colors for a set of genres shown together, never the same color twice in one set: a
+    // genre whose own color is taken gets the first radio color nobody in the set uses yet.
+    function genreColors(genres) {
+        const used = new Set();
+        const want = (g) => GENRE_FEEL[fold(g.name).replace(/[^a-z0-9]/g, '')];
+        genres.forEach((g) => { const c = want(g); if (c && !used.has(c)) { g.color = c; used.add(c); } else g.color = null; });
+        genres.forEach((g) => {
+            if (g.color) return;
+            g.color = RADIO_COLORS.find((c) => !used.has(c)) || colorOf(g.name);
+            used.add(g.color);
+        });
+    }
     const initials = (n) => String(n || '?').replace(/[^\p{L}\p{N} ]/gu, '').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
     const fold = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
@@ -153,6 +181,11 @@
                 libId: ((views.Items || []).find((v) => v.CollectionType === 'music') || {}).Id || null,
             };
             buckets(idx);
+            const byNameSort = (a, b) => a.name.localeCompare(b.name);
+            idx.bigGenres = idx.genres.filter((g) => g.albums.length >= GENRE_TILE_MIN).sort(byNameSort);
+            idx.smallGenres = idx.genres.filter((g) => g.albums.length < GENRE_TILE_MIN).sort(byNameSort);
+            genreColors(idx.bigGenres);
+            genreColors(idx.smallGenres);
             M.index = idx;
             return idx;
         })().finally(() => { M.loading = null; });
@@ -400,13 +433,12 @@
     // Search: the landing tab. Genre tiles until something is typed, then results.
     VIEWS.search = async (body, idx) => {
         const rnd = rng('genres' + today());
-        const big = idx.genres.filter((g) => g.albums.length >= GENRE_TILE_MIN).sort((a, b) => a.name.localeCompare(b.name));
-        const small = idx.genres.filter((g) => g.albums.length < GENRE_TILE_MIN);
+        const big = idx.bigGenres, small = idx.smallGenres;
         const tile = (g) => {
             // One of the genre's covers peeks out of the corner, a different one each day.
             const a = g.albums.length ? g.albums[Math.floor(rnd() * g.albums.length)] : null;
             const href = `${ROUTE}/genre?name=${encodeURIComponent(g.name)}`;
-            return `<a class="tnm-genre" href="${href}" data-href="${href}" style="background:${colorOf(g.name)}"><span>${esc(g.name)}</span>
+            return `<a class="tnm-genre" href="${href}" data-href="${href}" style="background:${g.color}"><span>${esc(g.name)}</span>
                 ${a && a.tag ? `<img src="${esc(imgUrl(a.id, a.tag, 200))}" alt="" loading="lazy">` : ''}</a>`;
         };
         body.innerHTML = `<div class="tnm-searchbox"><span class="material-icons" aria-hidden="true">search</span>
@@ -451,11 +483,13 @@
     }
 
     VIEWS.genres = async (body, idx) => {
-        const small = idx.genres.filter((g) => g.albums.length < GENRE_TILE_MIN).sort((a, b) => a.name.localeCompare(b.name));
-        body.innerHTML = `<h1 class="tnm-h1">More genres</h1><div class="tnm-genres">${small.map((g) => {
-            const href = `${ROUTE}/genre?name=${encodeURIComponent(g.name)}`;
-            return `<a class="tnm-genre" href="${href}" data-href="${href}" style="background:${colorOf(g.name)}"><span>${esc(g.name)}</span></a>`;
-        }).join('')}</div>`;
+        // A dark card back to all the genres, matching the "More genres" card that led here.
+        body.innerHTML = `<h1 class="tnm-h1">More genres</h1><div class="tnm-genres">
+            <a class="tnm-genre tnm-genre-more" href="${ROUTE}/search" data-href="${ROUTE}/search"><span><span class="material-icons" aria-hidden="true">arrow_back</span>All genres</span></a>
+            ${idx.smallGenres.map((g) => {
+                const href = `${ROUTE}/genre?name=${encodeURIComponent(g.name)}`;
+                return `<a class="tnm-genre" href="${href}" data-href="${href}" style="background:${g.color}"><span>${esc(g.name)}</span></a>`;
+            }).join('')}</div>`;
     };
 
     // A genre: its albums, then songs in it that aren't on those albums (singles, one-offs).
@@ -468,7 +502,7 @@
         const songs = await get(`Users/${uid()}/Items`, { IncludeItemTypes: 'Audio', Recursive: true, GenreIds: g.id, SortBy: 'AlbumArtist,Album,SortName', Limit: 1500 });
         if (!current()) return;
         const loose = (songs.Items || []).filter((s) => !shown.has(s.AlbumId)).slice(0, 200);
-        body.innerHTML = `<div class="tnm-genre-head" style="background:${colorOf(g.name)}">${header({
+        body.innerHTML = `<div class="tnm-genre-head" style="background:${g.color}">${header({
             kicker: 'Genre', title: g.name, sub: esc([albums.length ? plural(albums.length, 'album') : '', loose.length ? plural(loose.length, 'more song') : ''].filter(Boolean).join(' · ')),
             buttons: button('shuffle-genre', 'Shuffle', 'shuffle', { primary: true, id: g.id }),
         })}</div>
@@ -488,10 +522,11 @@
         };
         idx.decades.forEach((s) => parts.push(row(s)));
         shuffle(idx.mixed, rng('mixed' + day)).slice(0, DAILY_SHELVES).forEach((s) => parts.push(row(s)));
-        parts.push(`<section class="tnm-az" id="tnm-az"><div class="tnm-az-head"><h2 class="tnm-h2">A to Z</h2>
-            <div class="tnm-seg" role="group" aria-label="Show">
-                <button type="button" data-act="az" data-mode="albums" class="${M.azMode === 'albums' ? 'on' : ''}">Albums</button>
-                <button type="button" data-act="az" data-mode="artists" class="${M.azMode === 'artists' ? 'on' : ''}">Artists</button></div></div>
+        // The Albums / Artists switch is the section's heading (Sarah: "A to Z" said nothing
+        // the letter bar under it doesn't already say).
+        parts.push(`<section class="tnm-az" id="tnm-az"><div class="tnm-az-head" role="group" aria-label="All music by">
+                <button type="button" data-act="az" data-mode="albums" class="${M.azMode === 'albums' ? 'on' : ''}" aria-pressed="${M.azMode === 'albums'}">Albums</button>
+                <button type="button" data-act="az" data-mode="artists" class="${M.azMode === 'artists' ? 'on' : ''}" aria-pressed="${M.azMode === 'artists'}">Artists</button></div>
             <div class="tnm-az-body"></div></section>`);
         body.innerHTML = parts.join('');
         renderAz(idx);
@@ -785,7 +820,7 @@
             }
             case 'az':
                 M.azMode = d.mode; store('az', d.mode);
-                el.parentNode.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === el));
+                el.parentNode.querySelectorAll('button').forEach((b) => { b.classList.toggle('on', b === el); b.setAttribute('aria-pressed', b === el); });
                 return renderAz(M.index);
             case 'jump': {
                 const t = document.getElementById('tnm-l-' + (d.l === '#' ? 'num' : d.l));

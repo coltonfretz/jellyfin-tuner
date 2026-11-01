@@ -108,6 +108,11 @@ body[data-tnr-page="tv"] .tnr-topnav[data-kind="tv"], body[data-tnr-page="tv"] .
    whole window, and nothing clears it when our page takes over, so the last movie's art sat
    behind Radio. Hide it while ours is up; it's back as soon as the user leaves. */
 body.tnr-page-active .backdropContainer { display: none !important; }
+/* Jellyfin 12 draws some pages with React (Settings > Display and the other user settings):
+   they're .page elements in .skinBody, not .mainAnimatedPage, so showPage() doesn't hide
+   them, and React owns their class list. Opening Music from one left it showing through
+   ours (Sarah, 2026-11-01). Hidden by rule instead, for as long as our page is up. */
+body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; }
 /* Libraries moved out of the bar to make room for ours; they're offered in "More". */
 .MuiAppBar-root a[data-tnr-tucked] { display: none !important; }
 .MuiAppBar-root .tnr-topicon[data-tnr-hidden] { display: none !important; }
@@ -192,11 +197,12 @@ body.tnr-page-active .backdropContainer { display: none !important; }
    matches the rest of the site instead of bringing a palette of its own. */
 .tnm-wrap { max-width: 1500px; --tnm-accent: var(--jf-palette-primary-main, #00a4dc); --tnm-panel: rgba(255, 255, 255, .05);
   --tnm-panel2: rgba(255, 255, 255, .09); --tnm-dim: rgba(255, 255, 255, .62); --tnm-faint: rgba(255, 255, 255, .42); --tnm-card: 10.5em; }
-.tnm-tabs { display: flex; align-items: center; gap: .3em; margin: 0 0 1.4em; border-bottom: 1px solid rgba(255, 255, 255, .1);
+.tnm-tabs { display: flex; align-items: center; gap: .3em; margin: 0 0 1.6em; border-bottom: 1px solid rgba(255, 255, 255, .1);
   overflow-x: auto; scrollbar-width: none; }
 .tnm-tabs::-webkit-scrollbar { display: none; }
 .tnm-tab { color: var(--tnm-dim, rgba(255, 255, 255, .62)); text-decoration: none; padding: .7em .9em; font-size: 1.05em; white-space: nowrap;
   border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tnm-tab:first-child { padding-left: 0; }
 .tnm-tab:hover { color: #fff; }
 .tnm-tab.on { color: #fff; border-bottom-color: var(--tnm-accent, var(--jf-palette-primary-main, #00a4dc)); }
 .tnm-gap { flex: 1; }
@@ -221,6 +227,7 @@ body.tnr-page-active .backdropContainer { display: none !important; }
 .tnm-genre img { position: absolute; right: -.6em; bottom: -.9em; width: 5.2em; height: 5.2em; object-fit: cover; border-radius: 6px;
   transform: rotate(18deg); box-shadow: 0 4px 14px rgba(0, 0, 0, .45); }
 .tnm-genre-more { background: var(--tnm-panel2); display: flex; flex-direction: column; gap: .4em; }
+.tnm-genre-more > span { display: inline-flex; align-items: center; gap: .35em; }
 .tnm-genre-more small { font-size: .72em; font-weight: 400; color: var(--tnm-dim); line-height: 1.35; }
 
 /* Shelves and cards */
@@ -255,7 +262,7 @@ body.tnr-page-active .backdropContainer { display: none !important; }
 
 /* Spotlight */
 .tnm-spot { position: relative; display: flex; align-items: flex-end; gap: 1.6em; min-height: 17em; padding: 1.6em; border-radius: 14px;
-  overflow: hidden; margin-bottom: 2em; cursor: pointer; box-sizing: border-box; }
+  overflow: hidden; margin-bottom: 1.6em; cursor: pointer; box-sizing: border-box; }
 .tnm-spot-bg { position: absolute; inset: -40px; background-size: cover; background-position: center; filter: blur(34px) saturate(1.3); }
 .tnm-spot-bg.tnm-backdrop { inset: 0; filter: none; background-position: center 25%; }
 .tnm-spot-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .45) 55%, rgba(0, 0, 0, .15) 100%); }
@@ -276,11 +283,12 @@ body.tnr-page-active .backdropContainer { display: none !important; }
 .tnm-primary:hover { background: var(--tnm-accent); filter: brightness(1.12); }
 
 /* A to Z */
-.tnm-az-head { display: flex; align-items: center; gap: 1em; flex-wrap: wrap; }
-.tnm-az-head .tnm-h2 { flex: 1; }
-.tnm-seg { display: inline-flex; background: var(--tnm-panel); border-radius: 8px; padding: 3px; }
-.tnm-seg button { background: none; border: 0; color: var(--tnm-dim); font: inherit; padding: .35em 1em; border-radius: 6px; cursor: pointer; }
-.tnm-seg button.on { background: var(--tnm-panel2); color: #fff; }
+.tnm-az-head { display: flex; align-items: baseline; gap: 1.2em; margin: 0 0 .3em; }
+/* Two headings side by side; the lit one is what the rows below show. */
+.tnm-az-head button { background: none; border: 0; padding: 0 0 .2em; font: inherit; font-size: 1.45em; font-weight: 500; cursor: pointer;
+  color: var(--tnm-faint); border-bottom: 2px solid transparent; }
+.tnm-az-head button:hover { color: #fff; }
+.tnm-az-head button.on { color: #fff; border-bottom-color: var(--tnm-accent); }
 .tnm-letters { display: flex; flex-wrap: wrap; gap: .15em; margin: .3em 0 1.2em; }
 .tnm-letters > * { min-width: 1.9em; text-align: center; padding: .25em 0; font-size: .95em; }
 .tnm-letters button { background: none; border: 0; color: var(--tnm-accent); font: inherit; cursor: pointer; border-radius: 4px; }
@@ -337,6 +345,15 @@ body.tnr-page-active .backdropContainer { display: none !important; }
 .tnm-np-idle > .material-icons { font-size: 4em; opacity: .5; }
 .tnm-np-idle h2 { color: #fff; font-weight: 500; margin: .4em 0 .2em; }
 .tnm-np-idle .tnm-buttons { justify-content: center; }
+
+/* Older browser engines (Chromium before 88, Safari before 15) don't know aspect-ratio: covers
+   then took the picture's own shape and picture-less ones had no height at all. A padded
+   box keeps them square there. Current Chrome, Firefox and Safari never use this. */
+@supports not (aspect-ratio: 1 / 1) {
+  .tnm-art { position: relative; height: 0; padding-bottom: 100%; }
+  .tnm-art > img { position: absolute; top: 0; left: 0; }
+  .tnm-noart > span, .tnm-noart > .material-icons { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+}
 
 /* The top bar's Music link stays lit on the Music page and on Radio inside it. */
 body[data-tnr-page="music"] .MuiAppBar-root .MuiStack-root > a[href^="#/music?"],
