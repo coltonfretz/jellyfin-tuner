@@ -1486,7 +1486,7 @@
                 if (guide) tabs.push({ key: 'guide', label: 'Guide', libId: guide.Id, tile: 'tv', href: '#/livetv?collectionType=livetv', match: (h) => h.startsWith('#/livetv') });
                 const cls = named(TV_CLASSICS, 'tvshows');
                 if (cls) tabs.push(libTab('classics', 'Classics', cls));
-                list.push({ key: 'tv', tabs });
+                list.push({ key: 'tv', tabs, artFrom: cls ? cls.Id : null });
             }
             if (MOVIES_ON) {
                 const cls = named(MOVIES_CLASSICS, 'movies');
@@ -1532,6 +1532,7 @@
         // Side menu: the taken-in pages are reached through the section now.
         document.querySelectorAll('.MuiDrawer-root a[href], .mainDrawer a[href]').forEach((a) => a.toggleAttribute('data-tnr-merged', isMerged(hrefOf(a))));
         foldMyMedia();
+        foldHomeLiveTv();
         // Jellyfin's pages: the start of the second toolbar.
         const bar = document.querySelectorAll('.MuiAppBar-root > .MuiToolbar-root')[1];
         const want = hit && !hit.t.ours && !S.active ? hit.sec.key + ':' + hit.t.key : null;
@@ -1570,17 +1571,117 @@
             const label = el.querySelector('.cardText, .homeLibraryText');
             if (label && label.textContent.trim() !== 'TV') label.textContent = 'TV';
             const img = el.querySelector('.cardImageContainer');
-            if (img) img.setAttribute('aria-label', 'TV');
+            if (img) { img.setAttribute('aria-label', 'TV'); tvTileArt(img); }
         });
+    }
+
+    // The TV tile's picture. Jellyfin has none for Live TV (a blue box with an icon), so it
+    // gets what the library tiles have: a show's backdrop with the name across it. The show
+    // is picked among those that HAVE a backdrop (Classics first, else any TV library), a
+    // different one each day, the same for everyone that day.
+    const TVART = { list: null, loading: false };
+    function tvTileArt(img) {
+        if (img.dataset.tnrArt) return;
+        const tv = SECT.list.find((x) => x.key === 'tv');
+        if (!tv) return;
+        if (!TVART.list) {
+            if (TVART.loading) return;
+            TVART.loading = true;
+            // Classics first; if none of its shows has a backdrop (this server's Internet Archive
+            // classics only have posters), any show that does.
+            const find = (parent) => {
+                const q = { IncludeItemTypes: 'Series', Recursive: true, ImageTypes: 'Backdrop', Fields: 'BackdropImageTags', Limit: 500 };
+                if (parent) q.ParentId = parent;
+                return api(`Users/${ApiClient.getCurrentUserId()}/Items?` + new URLSearchParams(q))
+                    .then((r) => ((r && r.Items) || []).filter((x) => (x.BackdropImageTags || []).length));
+            };
+            find(tv.artFrom).then((l) => (l.length || !tv.artFrom ? l : find(null))).then(
+                (l) => { TVART.list = l; },
+                () => { TVART.list = []; },
+            ).then(() => { TVART.loading = false; foldMyMedia(); });
+            return;
+        }
+        if (!TVART.list.length) return;
+        const d = new Date();
+        const day = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5);
+        const show = TVART.list[day % TVART.list.length];
+        // Same size and quality the other library tiles ask for (see seasonImageUrl).
+        const proto = document.querySelector('.homeSectionsContainer .card[data-type="CollectionFolder"] .cardImageContainer');
+        const protoSrc = proto && (proto.getAttribute('data-src') || (/url\("?([^")]+)"?\)/.exec(proto.style.backgroundImage) || [])[1]);
+        const q = new URLSearchParams((protoSrc || '').split('?')[1] || 'fillHeight=203&fillWidth=360&quality=96');
+        q.set('tag', show.BackdropImageTags[0]);
+        img.dataset.tnrArt = show.Id;
+        img.classList.remove('defaultCardBackground', 'defaultCardBackground1', 'defaultCardBackground2', 'defaultCardBackground3', 'defaultCardBackground4', 'defaultCardBackground5');
+        img.style.backgroundImage = `url("${ApiClient.getUrl(`Items/${show.Id}/Images/Backdrop/0`)}?${q}")`;
+        img.style.backgroundSize = 'cover';
+        img.style.backgroundPosition = 'center';
+        const icon = img.querySelector('.cardImageIcon');
+        if (icon) icon.style.display = 'none';
+        // The name across the picture, like Jellyfin draws into the library tiles' images.
+        // An SVG so the text scales with the tile.
+        if (!img.querySelector('.tnr-tilename')) {
+            img.insertAdjacentHTML('beforeend', '<svg class="tnr-tilename" viewBox="0 0 960 540" aria-hidden="true"><text x="480" y="270">TV</text></svg>');
+        }
+    }
+
+    // The home page's "Live TV" section: its buttons went to the Live TV tabs we folded away
+    // (Programs, Guide, Channels...), and its "On Now" cards to Jellyfin's program pages,
+    // which open a channel through Live TV (46 s). With the TV section on, it's "TV" with our
+    // tabs as its buttons, and an On Now card opens Surf on that program's channel.
+    function foldHomeLiveTv() {
+        const tv = SECT.list.find((x) => x.key === 'tv');
+        if (!tv) return;
+        document.querySelectorAll('.homeSectionsContainer .verticalSection').forEach((sec) => {
+            const own = Array.from(sec.querySelectorAll('.scrollSlider > a[href^="#/livetv?tab="]'));
+            if (!own.length) return;
+            own.forEach((a) => a.setAttribute('data-tnr-merged', ''));
+            const title = sec.querySelector('.sectionTitle');
+            if (title && title.textContent.trim() !== 'TV') title.textContent = 'TV';
+            const slider = own[0].parentElement;
+            if (slider.querySelector(':scope > .tnr-tvbtn')) return;
+            const first = slider.firstChild;
+            tv.tabs.forEach((t) => {
+                const b = own[0].cloneNode(true);
+                b.removeAttribute('data-tnr-merged');
+                b.classList.add('tnr-tvbtn');
+                b.setAttribute('href', t.href);
+                const label = b.querySelector('span') || b;
+                label.textContent = t.label;
+                if (t.ours) b.addEventListener('click', go(t.ours));
+                slider.insertBefore(b, first);
+            });
+        });
+    }
+
+    // Surf, tuned to a given channel number (or where it was if the number isn't there).
+    function openSurfAt(number) {
+        if (number != null) {
+            store('tvlast', String(number));
+            if (T.loaded) { const i = T.channels.findIndex((c) => sameNum(c.number, number)); if (i >= 0) T.idx = i; }
+        }
+        if (S.active === 'tv') { tvSelect(T.idx, true); return; }
+        go('tv')();
+    }
+
+    // Jellyfin's channel numbers match Surf's (both come from Dispatcharr and the HDHomeRun),
+    // so a program or channel card can say where to tune.
+    async function channelNumberOf(card) {
+        const id = card.dataset.id;
+        if (card.dataset.type === 'TvChannel') return (await api(`LiveTv/Channels/${id}`)).Number;
+        const prog = await api(`LiveTv/Programs/${id}`);
+        return prog.ChannelId ? (await api(`LiveTv/Channels/${prog.ChannelId}`)).Number : null;
     }
 
     document.addEventListener('click', (e) => {
         if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-        const tile = e.target.closest('[data-tnr-tile="tv"]');
-        if (!tile) return;
+        if (!SECT.list.some((x) => x.key === 'tv')) return;
+        const tile = e.target.closest('[data-tnr-tile="tv"], .homeSectionsContainer a[href^="#/list?type=Programs"]');
+        const card = !tile && e.target.closest('.homeSectionsContainer .card[data-type="Program"], .homeSectionsContainer .card[data-type="TvChannel"]');
+        if (!tile && !card) return;
         e.preventDefault();
         e.stopPropagation();
-        go('tv')();
+        if (tile) { go('tv')(); return; }
+        channelNumberOf(card).then((n) => openSurfAt(n), () => openSurfAt(null));
     }, true);
 
     // =====================================================================

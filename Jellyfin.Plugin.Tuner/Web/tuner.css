@@ -118,6 +118,10 @@ body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; 
    stays lit on every one of its pages. */
 .MuiAppBar-root a[data-tnr-merged], .MuiDrawer-root a[data-tnr-merged], .mainDrawer a[data-tnr-merged],
 .homeSectionsContainer [data-tnr-merged] { display: none !important; }
+/* The TV tile's name across its picture (tvTileArt), drawn like Jellyfin's library tiles. */
+.tnr-tilename { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+.tnr-tilename text { fill: #fff; font: 700 150px sans-serif; text-anchor: middle; dominant-baseline: central;
+  paint-order: stroke; stroke: rgba(0, 0, 0, .55); stroke-width: 10px; }
 .MuiAppBar-root [data-tnr-lit] { color: var(--jf-palette-primary-main, #00a4dc) !important; }
 /* The tabs (Surf | Guide | Classics, Movies | Classics). On Jellyfin's pages they sit at the
    start of the toolbar under the top bar, before the page's own menu; on Surf, a bar of the
