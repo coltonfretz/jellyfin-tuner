@@ -65,6 +65,19 @@
                     </div>
                     <div class="fieldDescription">Changes show up after a page reload.</div>
 
+                    <h2>Music page</h2>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="MusicPage" />
+                            <span>Open a simpler Music page from the Music links</span>
+                        </label>
+                    </div>
+                    <div class="fieldDescription">Search with genre tiles, a Catalog of playlists, decades and A to Z, Now Playing, and Radio, as tabs. Radio moves out of the top bar into it. Jellyfin's own music page is one click away under Classic view. Works in the browser, desktop and phone apps, not the TV apps.</div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="MusicMinSongs" label="Fewest songs to count as an album" min="1" max="50" />
+                        <div class="fieldDescription">Anything shorter is treated as a single and left off the album shelves. It still shows up in Search and on the artist's page.</div>
+                    </div>
+
                     <h2>My Media</h2>
                     <div class="inputContainer">
                         <input is="emby-input" type="text" id="Seasons" label="Seasonal collections" />
@@ -84,7 +97,7 @@
                     <div class="checkboxContainer">
                         <label>
                             <input is="emby-checkbox" type="checkbox" id="DisableInjection" />
-                            <span>Turn off the Radio and TV pages without uninstalling</span>
+                            <span>Turn off the Radio, TV and Music pages without uninstalling</span>
                         </label>
                     </div>
 
@@ -113,6 +126,8 @@
                         page.querySelector('#MixMusicArtists').checked = config.MixMusicArtists !== false;
                         page.querySelector('#RotateSeconds').value = config.RotateSeconds || 120;
                         page.querySelector('#HideCollectionsLibrary').checked = config.HideCollectionsLibrary !== false;
+                        page.querySelector('#MusicPage').checked = !!config.MusicPage;
+                        page.querySelector('#MusicMinSongs').value = config.MusicMinSongs || 4;
                         page.querySelector('#ShuffleLibraryTileDays').value = config.ShuffleLibraryTileDays == null ? 3 : config.ShuffleLibraryTileDays;
                         Dashboard.hideLoadingMsg();
                     });
@@ -130,6 +145,8 @@
                         config.MixMusicArtists = page.querySelector('#MixMusicArtists').checked;
                         config.RotateSeconds = Math.max(20, parseInt(page.querySelector('#RotateSeconds').value, 10) || 120);
                         config.HideCollectionsLibrary = page.querySelector('#HideCollectionsLibrary').checked;
+                        config.MusicPage = page.querySelector('#MusicPage').checked;
+                        config.MusicMinSongs = Math.min(50, Math.max(1, parseInt(page.querySelector('#MusicMinSongs').value, 10) || 4));
                         var days = parseInt(page.querySelector('#ShuffleLibraryTileDays').value, 10);
                         config.ShuffleLibraryTileDays = isNaN(days) ? 3 : Math.max(0, days);
                         ApiClient.updatePluginConfiguration(pluginId, config).then(Dashboard.processPluginConfigurationUpdateResult);

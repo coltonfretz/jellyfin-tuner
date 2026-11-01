@@ -16,6 +16,12 @@
     window.__tunerLoaded = true;
 
     const ROUTE = '#/tuner/radio';
+    const MUSIC_ROUTE = '#/tuner/music';
+    // music.js (the Music page) has its own script tag, only when "Music page" is on in the
+    // settings. All the tags are in the page before any script runs, so this is known now,
+    // before the side menu and top bar are drawn. Radio then lives inside Music, as its last tab.
+    const MUSIC_ON = !!document.querySelector('script[src*="Tuner/music.js"]');
+    const music = () => (MUSIC_ON ? window.TunerMusic : null);
     const PAGE_ID = 'tnr-radio-page';
     const NOWPLAYING_MS = 20000;
     const FAV_COLOR = '#B8860B';
@@ -141,6 +147,7 @@
 
     function playLive(st, g, quiet) {
         if (!quiet) staticBlip();
+        if (music()) music().pauseJellyfin();
         S.playing = { kind: 'live', station: st, genre: g };
         S.nowTitle = '';
         const a = audio();
@@ -153,6 +160,7 @@
 
     async function startJam(g) {
         staticBlip();
+        if (music()) music().pauseJellyfin();
         S.jamQueue = [];
         S.playing = { kind: 'jam', track: null, genre: g };
         renderAll();
@@ -302,7 +310,7 @@
         if (!page || !S.loaded) return;
         const root = $('.tnr-wrap', page);
         const hasJam = S.jamGenres.length > 0;
-        root.innerHTML = `
+        root.innerHTML = `${music() ? music().tabsHtml('radio') : ''}
             <div class="tnr-head">
                 <h1>Radio</h1>
                 <input class="tnr-search" type="search" placeholder="Search stations" value="${esc(S.search)}" aria-label="Search stations">
@@ -339,6 +347,7 @@
                 if (Math.abs(dx) > 40) stepGenre(dx < 0 ? 1 : -1);
             });
         });
+        if (music()) music().bind(root);
         renderScale(); renderAll();
     }
 
@@ -887,6 +896,7 @@
     const PAGES = {
         radio: { route: ROUTE, id: PAGE_ID, title: 'Radio', loading: 'Loading stations…' },
         tv: { route: TV_ROUTE, id: TV_PAGE_ID, title: 'Surf TV', loading: 'Loading channels…' },
+        music: { route: MUSIC_ROUTE, id: 'tnr-music-page', title: 'Music', loading: 'Loading your music…' },
     };
 
     function pageEl(kind) {
@@ -910,6 +920,7 @@
             page.classList.add('hide');
             page.dispatchEvent(new CustomEvent('viewhide', { bubbles: true, detail: { type: 'custom' } }));
         }
+        if (kind === 'music' && music()) music().leave();
         if (kind === 'tv') {
             // TV doesn't keep playing in the background the way radio does.
             clearTimeout(T.tuneTimer); clearTimeout(T.guideTimer);
@@ -920,7 +931,11 @@
 
     async function showPage(kind) {
         kind = kind || 'radio';
-        if (S.active === kind) return;
+        if (S.active === kind) {
+            // Music has views of its own (tabs, albums, artists); moving between them stays here.
+            if (kind === 'music' && music()) music().show(pageEl('music'), location.hash);
+            return;
+        }
         if (S.active) leave(S.active);
         else {
             // Remember Jellyfin's own page so leaving ours puts it back.
@@ -945,9 +960,14 @@
         renderMini();
         try {
             if (kind === 'radio') { if (!S.loaded) await loadCatalog(); renderPage(); }
+            else if (kind === 'music') await music().show(page, location.hash);
             else { if (!T.loaded) await loadTv(); else refreshGuide(); renderTvPage(); }
         } catch (e) {
-            $('.tnr-wrap', page).innerHTML = `<div class="tnr-empty">Couldn't load ${kind === 'radio' ? 'the station list' : 'the channel list'}. Check the Tuner plugin settings.</div>`;
+            const what = { radio: 'the station list', tv: 'the channel list', music: 'your music library' }[kind];
+            // Radio inside Music keeps the Music tabs, so the way back is still there.
+            const tabs = kind === 'radio' && music() ? music().tabsHtml('radio') : '';
+            $('.tnr-wrap', page).innerHTML = `${tabs}<div class="tnr-empty">Couldn't load ${what}. Check the Tuner plugin settings.</div>`;
+            if (tabs) music().bind($('.tnr-wrap', page));
         }
     }
 
@@ -978,7 +998,9 @@
     function stopLocationWatcher() { clearInterval(S.locTimer); S.locTimer = null; }
 
     function route() {
+        if (catchMusicRoute()) return;
         if (location.hash.startsWith(ROUTE)) showPage('radio');
+        else if (MUSIC_ON && music() && location.hash.startsWith(MUSIC_ROUTE)) showPage('music');
         else if (location.hash.startsWith(TV_ROUTE)) showPage('tv');
         else if (S.active) hidePage();
     }
@@ -1001,10 +1023,12 @@
         radio: 'M3.24 6.15C2.51 6.43 2 7.17 2 8v12c0 1.1.89 2 2 2h16c1.11 0 2-.9 2-2V8c0-1.11-.89-2-2-2H8.3l8.26-3.34L15.88 1zM7 20c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3m13-8h-2v-2h-2v2H4V8h16z',
         tv: 'M21 3H3c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.11-.9-2-2-2m0 14H3V5h18zM16 11l-7 4V7z',
     };
+    // With the Music page on, Radio is a tab inside Music and leaves the menu and top bar
+    // (which also gives the crowded top bar one link less to fit).
     const ENTRIES = [
         { kind: 'radio', label: 'Radio', material: 'radio' },
         { kind: 'tv', label: 'Surf TV', material: 'live_tv' },
-    ];
+    ].filter((en) => !(MUSIC_ON && en.kind === 'radio'));
 
     // Jellyfin 12 ships two web layouts. The classic one has .mainDrawer-scrollContainer;
     // the newer one keeps that element in the DOM but hidden, and shows an MUI drawer
@@ -1388,7 +1412,7 @@
                 ' ': togglePlay, f: toggleFav, n: () => nextJam(), k: keepTrack,
                 '/': () => { const s = $('.tnr-search'); if (s) s.focus(); },
             }[e.key];
-        } else {
+        } else if (S.active === 'tv') {
             const v = $('.tnr-video');
             if (/^[0-9.]$/.test(e.key)) fn = () => typeDigit(e.key);
             else {
@@ -1403,6 +1427,73 @@
         }
         if (fn) { e.preventDefault(); fn(); }
     });
+
+    // =====================================================================
+    // Music page: Jellyfin's Music links open ours (music.js draws it)
+    // =====================================================================
+    //
+    // Every way into Jellyfin's music library (the top bar link, the side menu, the My Media
+    // tile, "Recently Added in Music" titles) goes to #/music?topParentId=... Clicks on those
+    // are caught before Jellyfin's router sees them, so its music page never even starts
+    // loading. Anything that still lands on #/music (Back, a bookmark, a link we didn't
+    // catch) is swapped for ours by catchMusicRoute(). "Classic view" turns this off until a
+    // Music link is clicked again.
+
+    const isJellyfinMusic = (h) => /^#\/music(\?|$)/.test(h || '') && !/[?&]collectionType=(?!music\b)/.test(h);
+
+    function catchMusicRoute() {
+        if (!MUSIC_ON || !music() || !isJellyfinMusic(location.hash) || music().classicOn()) return false;
+        history.replaceState(history.state, 'Music', MUSIC_ROUTE);
+        showPage('music');
+        return true;
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!MUSIC_ON || !music() || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+        const a = e.target.closest('a[href]');
+        const hit = (a && isJellyfinMusic(a.getAttribute('href')) && a)
+            || e.target.closest('.card[data-collectiontype="music"]');
+        if (!hit || hit.closest('.tnr-page')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        music().classicOff();
+        const t = sidebarTarget();
+        if (t && hit.closest('.MuiDrawer-root, .mainDrawer')) closeDrawer(t.kind);
+        if (S.active === 'music' && location.hash.startsWith(MUSIC_ROUTE)) {
+            // Already here: the Music link goes back to the first tab.
+            if (location.hash !== MUSIC_ROUTE) history.pushState({ page: 'tuner-music' }, 'Music', MUSIC_ROUTE);
+            showPage('music');
+            return;
+        }
+        go('music')();
+    }, true);
+
+    // jellyfin-web answers addresses it doesn't know (ours, after Back or Forward) with its
+    // "page not found" view, drawn after we've already put ours up. While the address is one
+    // of ours, nothing of Jellyfin's should be showing.
+    function hideStrayPages() {
+        if (!S.active || !location.hash.startsWith('#/tuner/')) return;
+        document.querySelectorAll('.mainAnimatedPage:not(.hide):not(.tnr-page)').forEach((p) => p.classList.add('hide'));
+    }
+
+    // What music.js needs from this file.
+    window.Tuner = {
+        route,
+        go: (kind) => go(kind)(),
+        toast,
+        stopRadio: () => { if (S.playing) stop(); },
+        toggleRadio: () => togglePlay(),
+        radio: () => {
+            const p = S.playing;
+            if (!p) return null;
+            const live = p.kind === 'live';
+            return {
+                name: live ? p.station.name : `Jamendo ${p.genre.name}`,
+                title: S.nowTitle, genre: p.genre.name, color: live ? colorOfStation(p.station, p.genre) : p.genre.color,
+                logo: live ? logoUrl(p.station) : (p.track && p.track.image) || '', paused: audio().paused,
+            };
+        },
+    };
 
     // =====================================================================
     // Seasonal tiles in My Media (e.g. Halloween in October)
@@ -1527,6 +1618,7 @@
             setTimeout(boot, 500);
             return;
         }
+        if (MUSIC_ON) document.body.classList.add('tnr-music-on');
         injectNav();
         injectTopBar();
         injectSeasonal();
@@ -1535,7 +1627,7 @@
         let pending = false;
         new MutationObserver(() => {
             if (pending) return; pending = true;
-            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); });
+            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); });
         }).observe(document.body, { childList: true, subtree: true });
         // Rotating a phone or resizing the window changes how many dial numbers fit.
         let rz;

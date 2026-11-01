@@ -96,6 +96,14 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     var mix = config.MixMusicArtists ? "1" : "0";
                     tags += $"<script src=\"../Tuner/homerows.js?v={v}\" data-seconds=\"{seconds}\" data-mix=\"{mix}\" defer></script>";
                 }
+                if (config?.MusicPage == true)
+                {
+                    // After client.js on purpose: tuner.js looks for this tag to know the Music
+                    // page is on (Radio then moves into it), and music.js uses tuner.js's window.Tuner.
+                    var min = Math.Clamp(config.MusicMinSongs, 1, 50);
+                    tags += $"<script src=\"../Tuner/music.js?v={v}\" data-min-songs=\"{min}\" defer></script>";
+                }
+
                 html = html.Substring(0, bodyClose) + tags + html.Substring(bodyClose);
             }
         }

@@ -55,6 +55,10 @@ public class TunerController : ControllerBase
     [AllowAnonymous]
     public IActionResult HomeRowsScript() => Embedded("Tuner.Web.homerows.js", "application/javascript");
 
+    [HttpGet("music.js")]
+    [AllowAnonymous]
+    public IActionResult MusicScript() => Embedded("Tuner.Web.music.js", "application/javascript");
+
     [HttpGet("client.css")]
     [AllowAnonymous]
     public IActionResult ClientStyle() => Embedded("Tuner.Web.tuner.css", "text/css");

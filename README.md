@@ -1,6 +1,6 @@
 # Tuner (Jellyfin plugin)
 
-Adds **Radio** and **Surf TV** pages to the Jellyfin web UI, plus a few home page touches: "Recently Added" rows that rotate, seasonal tiles in My Media, and library tiles that get a new picture every few days.
+Adds **Radio** and **Surf TV** pages to the Jellyfin web UI, an optional simpler **Music** page, plus a few home page touches: "Recently Added" rows that rotate, seasonal tiles in My Media, and library tiles that get a new picture every few days.
 
 > Built with Claude for my own server and shared as is. It works on my setup (Jellyfin 12.4, the web UI, Jellyfin Media Player and the Android app). Updated as needed. Issues and pull requests are welcome.
 
@@ -11,6 +11,7 @@ Adds **Radio** and **Surf TV** pages to the Jellyfin web UI, plus a few home pag
 - **Radio > Live radio:** internet radio stations from a station list you provide, on a tuning dial grouped by genre. Arrow keys or swipes tune, song titles from the stream show as they change, plus favorites, search, a "static" sound between stations (can be turned off), a mini player while you browse elsewhere, and lock screen / media key controls.
 - **Radio > Jamendo:** Creative Commons music from Jamendo, one track after another per genre, with skip and **Keep**. Keep saves the MP3 into your music library, only when the artist allows downloads.
 - **Surf TV:** flip through channels like cable. Free streaming channels from **Dispatcharr**, and over-the-air channels from an **HDHomeRun** tuner. Up/down changes channel, type a number to jump, L goes back to the last channel, F is full screen.
+- **Music page (optional):** the Music links open a simpler page with four tabs. **Search** has a search box and a tile for each genre. **Catalog** has a daily Spotlight album, your playlists, a row per decade, a few genre-and-decade shelves that change every day ("2010s Hip Hop"), and everything A to Z by album or artist. **Now Playing** shows the song with big cover art and what's up next. **Radio** is the Radio page, moved in from the top bar. Jellyfin's own music page stays one click away under **Classic view**. See [Music page](#music-page).
 - **Home page:** the Recently Added rows load a longer list and slide to the next set of posters every couple of minutes, and Recently Added in Music shows at most three albums per artist.
 - **My Media:** a seasonal tile (a collection that only shows up between two dates each year, Halloween by default), and library tiles that get a fresh background picture every few days.
 
@@ -48,6 +49,7 @@ Then open **Dashboard > Plugins > Tuner** to set it up, and reload the web UI.
 | Seasons | `Name=MM-DD..MM-DD` pairs separated by semicolons, both days included, wrapping past New Year if needed (`Holidays=12-01..01-05`). Name is a Jellyfin collection. |
 | Hide the Collections library | Keeps the all-year Collections tile out of everyone's My Media, so seasonal collections only show in season. |
 | Library tile pictures | Days between new pictures for each library's tile, 0 for never. Set it to 0 if you uploaded your own library pictures, or they'll be replaced. |
+| Music page | On/off (off by default, since it takes over the Music links). Also the fewest songs for something to count as an album (4): shorter releases are treated as singles and left off the album shelves, but Search and the artist and genre pages still show them. |
 | Turn off the pages | Stops adding Tuner to the web UI without uninstalling. |
 
 ### Station list
@@ -74,6 +76,17 @@ While a season is on, a tile for its collection appears at the front of everyone
 - Curate with Jellyfin's own **Add to collection**. The collection's Thumb image is the tile; Primary is the poster on its page.
 - Playlists inside a season's collection are public in season and private (owner only) out of season, so a holiday mix isn't sitting in everyone's Playlists in June.
 - The daily task **Dashboard > Scheduled Tasks > Tuner > Seasons and library tiles** (04:10 and at startup) handles the playlists, the Collections tile and the library pictures. Run it by hand after changing a season's dates.
+
+## Music page
+
+Turn it on in the settings and reload the web UI. Every Music link (top bar, side menu, the My Media tile, "Recently Added in Music") then opens it instead of Jellyfin's music library.
+
+- **Genres** come from the songs' own genre tags, not the extra genres Jellyfin attaches to albums from online lookups. Lower case tags are tidied for display ("r&b" shows as R&B). Genres with fewer than 8 albums share a **More genres** tile.
+- **Decades** use each album's year. As soon as a decade has fewer than 16 albums, it and everything older share one "Before ..." row, so a library that leans recent doesn't get rows of three covers. Albums without a year are left out of the decade rows only.
+- **Daily picks** (the Spotlight, which shelves show, their order, the cover on each genre tile) are the same for everyone on a given day and change the next. Nothing is stored for this.
+- **Albums vs singles:** anything with fewer songs than the setting (4) isn't shown as an album. That keeps the one song you have from someone's compilation off the shelves.
+- **Playback goes through Jellyfin's own player,** so the bottom bar, the queue, casting and the lock screen work as usual. Starting a library song stops the radio, and starting the radio pauses the library song.
+- **No play history is used.** Every shelf is built from what the library already knows about each album.
 
 ## Top bar
 
@@ -107,6 +120,8 @@ Design choices, and why:
 - **Tickets instead of tokens in URLs.** Audio and image tags can't send a sign-in header, and Jellyfin 12 dropped `?api_key=` on most endpoints. Tuner signs a 12-hour ticket with a key that changes on every restart.
 - **Surf TV plays free channels straight from their servers** (much faster than opening them through Live TV), with a relay only for the few servers that refuse a web page.
 - **Antenna channels are converted on the server** (HDHomeRun sends MPEG-TS that browsers can't play) and shared by everyone watching the same channel. It costs about one CPU core per channel with software encoding, and stops shortly after the last viewer leaves.
+- **The Music page plays through Jellyfin's player by sending "play these" to the browser's own session** (the same command as playing on another device from a phone). jellyfin-web doesn't let outside scripts reach its player, and a second player of Tuner's own would lose the bottom bar, the queue and media keys.
+- **The Music page loads the whole album list once** (a few hundred KB for 1,600 albums) and groups it in the browser. Jellyfin can't filter albums by song count, and its album genres mix in online lookups.
 - **Jamendo's own radio channels aren't used:** they all redirect to unrelated streams. The track catalog works. Its API sometimes returns nothing, so each genre's tracks are cached for 12 hours, and a failed refresh keeps the old ones.
 
 ## Build

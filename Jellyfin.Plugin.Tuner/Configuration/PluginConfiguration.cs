@@ -91,6 +91,21 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public int ShuffleLibraryTileDays { get; set; } = 3;
 
+    /// <summary>
+    /// The Music page: Jellyfin's Music links open a simpler page with Search (genre tiles),
+    /// Catalog (playlists, a row per decade, daily shelves, A to Z), Now Playing and Radio as
+    /// tabs. Radio moves from the top bar into it. Off by default because it takes over the
+    /// Music link; Jellyfin's own page stays reachable from its "Classic view" link.
+    /// </summary>
+    public bool MusicPage { get; set; }
+
+    /// <summary>
+    /// Fewest songs for something to be shown as an album on the Music page. Below this it's
+    /// a single, or the one track someone has from a compilation; those are still found by
+    /// Search and on the artist's and genre's pages.
+    /// </summary>
+    public int MusicMinSongs { get; set; } = 4;
+
     /// <summary>Kill switch: stop injecting the client script without uninstalling.</summary>
     public bool DisableInjection { get; set; }
 }
