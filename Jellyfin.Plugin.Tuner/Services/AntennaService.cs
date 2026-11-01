@@ -368,6 +368,13 @@ public sealed partial class AntennaService : IDisposable
                 }
             }
 
+            // Stopped meanwhile (another viewer's channel change or a takeover took the
+            // tuner; its process is already disposed, so check this before HasExited).
+            if (s.Stopped)
+            {
+                return (PlaylistResult.TunersBusy, null);
+            }
+
             if (s.Proc.HasExited || DateTime.UtcNow > deadline)
             {
                 lock (_lock)

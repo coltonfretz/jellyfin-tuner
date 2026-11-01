@@ -14,6 +14,11 @@ namespace Jellyfin.Plugin.Tuner.Services;
 ///
 /// The key is random per process, so a Jellyfin restart invalidates every ticket;
 /// the client simply asks for a fresh one when a stream URL is refused.
+///
+/// Each ticket also carries a random part, so no two are alike: the antenna tells
+/// viewers apart by their ticket (who still watches a channel, whose old channel to
+/// free on a channel change), and before 1.0.2.0 two viewers who opened Surf in the
+/// same second got the same ticket and could stop each other's channel.
 /// </summary>
 public class StreamTickets
 {
@@ -23,7 +28,9 @@ public class StreamTickets
     public string Issue()
     {
         var exp = DateTimeOffset.UtcNow.Add(Lifetime).ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
-        return exp + "." + Sign(exp);
+        var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(9)).Replace('+', '-').Replace('/', '_');
+        var payload = exp + "." + nonce;
+        return payload + "." + Sign(payload);
     }
 
     public bool IsValid(string? ticket)
@@ -33,8 +40,11 @@ public class StreamTickets
             return false;
         }
 
-        var dot = ticket.IndexOf('.', StringComparison.Ordinal);
-        if (dot <= 0 || !long.TryParse(ticket.AsSpan(0, dot), out var exp))
+        // "exp.nonce.sig" (or "exp.sig" from before 1.0.2.0): the signature covers
+        // everything before the last dot, the expiry is everything before the first.
+        var last = ticket.LastIndexOf('.');
+        var first = ticket.IndexOf('.', StringComparison.Ordinal);
+        if (first <= 0 || !long.TryParse(ticket.AsSpan(0, first), out var exp))
         {
             return false;
         }
@@ -44,8 +54,8 @@ public class StreamTickets
             return false;
         }
 
-        var expected = Encoding.ASCII.GetBytes(Sign(ticket[..dot]));
-        var given = Encoding.ASCII.GetBytes(ticket[(dot + 1)..]);
+        var expected = Encoding.ASCII.GetBytes(Sign(ticket[..last]));
+        var given = Encoding.ASCII.GetBytes(ticket[(last + 1)..]);
         return CryptographicOperations.FixedTimeEquals(expected, given);
     }
 
