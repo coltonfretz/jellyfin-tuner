@@ -38,8 +38,8 @@ if not plugins:
     plugins = [{
         "guid": guid,
         "name": "Tuner",
-        "description": "Radio dial and TV surf mode for the Jellyfin web UI.",
-        "overview": "Live radio, Jamendo, free TV and antenna channels, rotating home rows, seasonal tiles.",
+        "description": "Radio dial, TV surf mode and a simpler Music page for the Jellyfin web UI.",
+        "overview": "Live radio, Jamendo, free TV and antenna channels, an Apple Music style Music page, TV and Movies sections with tabs, rotating home rows, seasonal tiles.",
         "owner": "coltonfretz",
         "category": "General",
         "versions": [],
