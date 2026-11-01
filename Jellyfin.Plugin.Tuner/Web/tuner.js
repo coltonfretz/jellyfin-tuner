@@ -572,7 +572,7 @@
         loaded: false, enabled: true, ticket: '', channels: [], guide: {},
         idx: 0, playingIdx: -1, lastIdx: -1, hls: null, usingRelay: false,
         digits: '', digitTimer: null, tuneTimer: null, bannerTimer: null, guideTimer: null,
-        hlsLoading: null, antenna: null,
+        hlsLoading: null, antenna: null, live: null, liveTimer: null,
     };
 
     const groupColor = (g) => GROUP_COLORS[g] || '#888780';
@@ -610,6 +610,35 @@
         refreshGuide();
     }
 
+    // Which antenna channels are playing for anyone right now. Once both tuners are
+    // taken, those two can still be joined (they share a tuner) and every other antenna
+    // channel can't, so surfing skips those and the guide says why. Checked every 15 s
+    // while Surf is open; the server only says channel numbers, never who.
+    async function refreshLive() {
+        clearTimeout(T.liveTimer);
+        try {
+            const r = await fetch(ApiClient.getUrl('Tuner/tv/antenna/live') + '?t=' + encodeURIComponent(T.ticket));
+            if (r.ok) { T.live = await r.json(); renderTvInfo(); }
+        } catch (e) { /* keep last */ }
+        if (S.active === 'tv') T.liveTimer = setTimeout(refreshLive, 15000);
+    }
+
+    // An antenna channel this viewer can't start: both tuners busy with other channels.
+    // Holding one ourselves means changing channel frees it, so nothing is blocked then.
+    function blocked(ch) {
+        const L = T.live;
+        if (!ch || ch.kind !== 'antenna' || !L || T.antenna) return false;
+        return L.live.length >= L.tuners && !L.live.some((n) => sameNum(n, ch.number));
+    }
+
+    function busyMessage() {
+        const names = ((T.live && T.live.live) || []).map((n) => {
+            const c = T.channels.find((x) => sameNum(x.number, n));
+            return c ? `${c.number} ${c.name}` : n;
+        });
+        return names.length ? `Both antenna tuners are in use. On now: ${names.join(', ')}` : 'Both antenna tuners are in use';
+    }
+
     async function refreshGuide() {
         clearTimeout(T.guideTimer);
         try { T.guide = await api('Tuner/tv/guide'); renderTvInfo(); } catch (e) { /* keep last */ }
@@ -629,8 +658,11 @@
     // Channel up/down move the selection and banner immediately, then tune once the
     // viewer pauses, so flicking through ten channels doesn't open ten streams.
     function surf(d) {
-        if (!T.channels.length) return;
-        tvSelect((T.idx + d + T.channels.length) % T.channels.length);
+        const n = T.channels.length;
+        if (!n) return;
+        let i = (T.idx + d + n) % n;
+        for (let k = 0; k < n && blocked(T.channels[i]); k++) i = (i + d + n) % n;
+        tvSelect(i);
     }
 
     function tvSelect(i, immediate) {
@@ -708,7 +740,7 @@
                 if (!data.fatal || T.hls !== hls) return;
                 if (antenna) {
                     const code = data.response && data.response.code;
-                    setStatus(code === 429 ? 'Both antenna tuners are in use' : `${ch.name} isn't coming in right now`);
+                    if (code === 429) { T.antenna = null; setStatus('Both antenna tuners are in use'); refreshLive().then(() => { if (T.hls === hls) setStatus(busyMessage()); }); } else setStatus(`${ch.name} isn't coming in right now`);
                 } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !viaRelay) {
                     // Usually the CDN refusing a cross-origin request: go through the relay.
                     const r = relayed(); r.add(String(ch.number)); store('tvrelay', [...r]);
@@ -775,7 +807,7 @@
         if (!page || !T.loaded) return;
         const root = $('.tnr-wrap', page);
         if (!T.enabled) {
-            root.innerHTML = '<div class="tnr-empty">TV needs Dispatcharr. Add its URL and API key in Dashboard → Plugins → Tuner.</div>';
+            root.innerHTML = '<div class="tnr-empty">TV needs Dispatcharr. Add its URL and API key in Dashboard, Plugins, Jellyfin-Tuned.</div>';
             return;
         }
         root.innerHTML = `
@@ -882,7 +914,7 @@
                 const j = (T.idx + o + T.channels.length) % T.channels.length, c = T.channels[j], nn = nowNext(c);
                 rows.push(`<div class="tnr-grow ${o === 0 ? 'on' : ''}" data-i="${j}">
                     <span class="tnr-gnum" style="color:${esc(groupColor(c.group))}">${c.number}</span>
-                    <span class="tnr-gtext"><span class="tnr-gname">${esc(c.name)}</span><span class="tnr-gnow">${esc(nn.now ? nn.now.title : 'Live')}</span></span>
+                    <span class="tnr-gtext"><span class="tnr-gname">${esc(c.name)}</span><span class="tnr-gnow">${esc(blocked(c) ? 'In use: both antenna tuners are busy' : nn.now ? nn.now.title : 'Live')}</span></span>
                 </div>`);
             }
             guide.innerHTML = rows.join('');
@@ -935,7 +967,7 @@
         if (kind === 'music' && music()) music().leave();
         if (kind === 'tv') {
             // TV doesn't keep playing in the background the way radio does.
-            clearTimeout(T.tuneTimer); clearTimeout(T.guideTimer);
+            clearTimeout(T.tuneTimer); clearTimeout(T.guideTimer); clearTimeout(T.liveTimer);
             teardownVideo(); T.playingIdx = -1;
             if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
         }
@@ -973,7 +1005,7 @@
         try {
             if (kind === 'radio') { if (!S.loaded) await loadCatalog(); renderPage(); }
             else if (kind === 'music') await music().show(page, location.hash);
-            else { if (!T.loaded) await loadTv(); else refreshGuide(); renderTvPage(); }
+            else { if (!T.loaded) await loadTv(); else refreshGuide(); renderTvPage(); if (T.enabled) refreshLive(); }
         } catch (e) {
             const what = { radio: 'the station list', tv: 'the channel list', music: 'your music library' }[kind];
             // Radio inside Music keeps the Music tabs, so the way back is still there.

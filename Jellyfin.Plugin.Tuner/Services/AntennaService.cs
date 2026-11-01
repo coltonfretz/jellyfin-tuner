@@ -319,7 +319,11 @@ public sealed partial class AntennaService : IDisposable
 
                 if (_sessions.Count >= _tuners)
                 {
-                    var victim = _sessions.Values.Where(x => DateTime.UtcNow - x.LastAccess > StealAfter).OrderBy(x => x.LastAccess).FirstOrDefault();
+                    // This viewer changing channels: the release for their old one is sent
+                    // first but can arrive after this request, so free it here. Only when
+                    // nobody else is still watching it.
+                    var victim = _sessions.Values.FirstOrDefault(x => x.Viewers.ContainsKey(ticket) && OnlyViewer(x, ticket))
+                        ?? _sessions.Values.Where(x => DateTime.UtcNow - x.LastAccess > StealAfter).OrderBy(x => x.LastAccess).FirstOrDefault();
                     if (victim is null)
                     {
                         return (PlaylistResult.TunersBusy, null);
@@ -376,6 +380,23 @@ public sealed partial class AntennaService : IDisposable
             }
 
             await Task.Delay(200, ct).ConfigureAwait(false);
+        }
+    }
+
+    private static bool OnlyViewer(Session s, string ticket)
+        => !s.Viewers.Any(v => v.Key != ticket && DateTime.UtcNow - v.Value < TimeSpan.FromSeconds(6));
+
+    /// <summary>
+    /// Channels playing right now and how many tuners there are, so a client can show
+    /// which channels can still be joined once both tuners are taken (anyone can watch
+    /// a channel that is already playing; it shares that tuner). Numbers only, never
+    /// who is watching.
+    /// </summary>
+    public (int Tuners, IReadOnlyList<string> Live) LiveChannels()
+    {
+        lock (_lock)
+        {
+            return (_tuners, _sessions.Values.Where(x => !x.Stopped && !x.Proc.HasExited).Select(x => x.Number).OrderBy(SortKey).ToList());
         }
     }
 

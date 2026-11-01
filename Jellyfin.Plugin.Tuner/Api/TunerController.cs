@@ -203,6 +203,20 @@ public class TunerController : ControllerBase
         return PhysicalFile(path, "video/mp2t");
     }
 
+    [HttpGet("tv/antenna/live")]
+    [AllowAnonymous]
+    public ActionResult AntennaLive([FromQuery] string? t)
+    {
+        if (!_tickets.IsValid(t))
+        {
+            return Forbid();
+        }
+
+        var (tuners, live) = _antenna.LiveChannels();
+        Response.Headers.CacheControl = "no-store";
+        return Ok(new { tuners, live });
+    }
+
     [HttpPost("tv/antenna/{number}/release")]
     [AllowAnonymous]
     public ActionResult AntennaRelease(string number, [FromQuery] string? t)
