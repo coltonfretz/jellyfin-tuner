@@ -112,7 +112,10 @@ body[data-tnr-page="request"] .tnr-topnav[data-kind="request"], body[data-tnr-pa
 .tnr-req-bar a { color: inherit; opacity: .75; text-decoration: none; }
 .tnr-req-bar a:hover { opacity: 1; text-decoration: underline; }
 .tnr-req-bar .material-icons { font-size: 1.1em; vertical-align: -.2em; margin-left: .3em; }
+/* Height is set by fitRequest() in tuner.js to exactly fill the window; this is only the
+   first guess before it runs. Jellyfin's page doesn't scroll while Request is open. */
 .tnr-req { display: block; width: 100%; height: calc(100vh - 9.5em); border: 0; border-radius: 10px; background: #111; }
+html.tnr-req-open, html.tnr-req-open body { overflow: hidden !important; }
 
 /* Jellyfin's backdrop art (an item page, or Jellyfin Enhanced's random-item dice) covers the
    whole window, and nothing clears it when our page takes over, so the last movie's art sat

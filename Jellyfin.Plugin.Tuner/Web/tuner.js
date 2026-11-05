@@ -1060,6 +1060,7 @@
         // highlight to our link (Jellyfin's React bar doesn't know about our pages).
         document.body.classList.add('tnr-page-active');
         document.body.dataset.tnrPage = kind;
+        document.documentElement.classList.toggle('tnr-req-open', kind === 'request');
         page.dispatchEvent(new CustomEvent('viewshow', { bubbles: true, detail: { type: 'custom', isRestored: false, options: {} } }));
         document.title = PAGES[kind].title;
         renderMini();
@@ -1086,6 +1087,7 @@
         }
         document.body.classList.remove('tnr-page-active');
         delete document.body.dataset.tnrPage;
+        document.documentElement.classList.remove('tnr-req-open');
         S.active = null; S.pageVisible = false; S.prevPage = null;
         stopLocationWatcher();
         renderMini();
@@ -1136,9 +1138,23 @@
     // finds Seerr where you left it (and doesn't load it again).
     function renderRequestPage(page) {
         const wrap = $('.tnr-wrap', page);
-        if ($('.tnr-req', wrap)) return;
-        wrap.innerHTML = `<div class="tnr-req-bar"><a href="${esc(REQUEST_URL)}" target="_blank" rel="noopener">Open in a new tab<span class="material-icons" aria-hidden="true">open_in_new</span></a></div>
+        if (!$('.tnr-req', wrap)) {
+            wrap.innerHTML = `<div class="tnr-req-bar"><a href="${esc(REQUEST_URL)}" target="_blank" rel="noopener">Open in a new tab<span class="material-icons" aria-hidden="true">open_in_new</span></a></div>
             <iframe class="tnr-req" src="${esc(REQUEST_URL)}" title="Request movies and shows" allow="fullscreen" referrerpolicy="no-referrer"></iframe>`;
+            window.addEventListener('resize', fitRequest);
+        }
+        window.scrollTo(0, 0);
+        fitRequest();
+    }
+
+    // The request site scrolls itself, so the frame fills exactly the window below where it
+    // starts and Jellyfin's page doesn't scroll at all while it's open (html.tnr-req-open).
+    // Before (2026-11-05), a fixed calc() height plus Jellyfin's ~250 px of page padding
+    // made the page scroll a little too, and the wheel moved both (Colton: "awkward").
+    function fitRequest() {
+        const f = $('.tnr-req');
+        if (!f || !f.offsetParent) return;
+        f.style.height = Math.max(240, window.innerHeight - f.getBoundingClientRect().top - 12) + 'px';
     }
 
     function openRequests() {
