@@ -101,8 +101,18 @@ body.tnr-page-active .MuiAppBar-root .MuiStack-root > a.MuiButton-textPrimary:no
    keep their labels on one line and never let flexbox squeeze them. */
 .tnr-topnav, .tnr-more { white-space: nowrap; flex-shrink: 0; }
 body[data-tnr-page="radio"] .tnr-topnav[data-kind="radio"], body[data-tnr-page="radio"] .tnr-topicon[data-kind="radio"],
-body[data-tnr-page="tv"] .tnr-topnav[data-kind="tv"], body[data-tnr-page="tv"] .tnr-topicon[data-kind="tv"] {
+body[data-tnr-page="tv"] .tnr-topnav[data-kind="tv"], body[data-tnr-page="tv"] .tnr-topicon[data-kind="tv"],
+body[data-tnr-page="request"] .tnr-topnav[data-kind="request"], body[data-tnr-page="request"] .tnr-topicon[data-kind="request"] {
   color: var(--jf-palette-primary-main, #00a4dc) !important; }
+
+/* Request embedded (when the request site shares a site with Fretzflix, see REQUEST_EMBED
+   in tuner.js): the request site fills the page under the top bar. A small link above it
+   opens the same site in its own tab. Heights are plain calc() for Chromium 83. */
+.tnr-req-bar { text-align: right; padding: .3em 0 .5em; font-size: .85em; }
+.tnr-req-bar a { color: inherit; opacity: .75; text-decoration: none; }
+.tnr-req-bar a:hover { opacity: 1; text-decoration: underline; }
+.tnr-req-bar .material-icons { font-size: 1.1em; vertical-align: -.2em; margin-left: .3em; }
+.tnr-req { display: block; width: 100%; height: calc(100vh - 9.5em); border: 0; border-radius: 10px; background: #111; }
 
 /* Jellyfin's backdrop art (an item page, or Jellyfin Enhanced's random-item dice) covers the
    whole window, and nothing clears it when our page takes over, so the last movie's art sat
@@ -379,6 +389,26 @@ body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; 
 .tnm-np-controls button:hover { background: var(--tnm-panel); }
 .tnm-np-controls .material-icons { font-size: 2.4em; }
 .tnm-np-controls .tnm-np-play .material-icons { font-size: 3.2em; }
+/* Now Playing extras (2026-11-05): shuffle + repeat beside the transport buttons, an
+   Up next / Lyrics switch, and the lyrics box. No gap or aspect-ratio (Chromium 83 in the
+   desktop app); no blur or masks, so it costs nothing extra while scrolling. */
+.tnm-np-controls { align-items: center; }
+.tnm-np-controls .tnm-np-mode { width: 2.6em; height: 2.6em; color: var(--tnm-dim); position: relative; }
+.tnm-np-controls .tnm-np-mode .material-icons { font-size: 1.6em; }
+.tnm-np-controls .tnm-np-mode.on { color: var(--tnm-accent); }
+.tnm-np-controls .tnm-np-mode.on::after { content: ''; position: absolute; left: 50%; bottom: .2em; width: 4px; height: 4px;
+  margin-left: -2px; border-radius: 50%; background: currentColor; }
+.tnm-np-panes { display: flex; margin: .4em 0 .8em; }
+.tnm-np-pane { background: var(--tnm-panel); border: 0; color: var(--tnm-dim); font: inherit; padding: .45em 1.1em; border-radius: 999px;
+  cursor: pointer; margin-right: .5em; }
+.tnm-np-pane:hover { background: var(--tnm-panel2); color: #fff; }
+.tnm-np-pane.on { background: #fff; color: #111; }
+.tnm-np-pane[hidden], .tnm-np-next[hidden], .tnm-np-lyrics[hidden] { display: none !important; }
+.tnm-np-note { color: var(--tnm-dim); margin: .3em 0 .8em; }
+.tnm-np-lyrics { max-height: 55vh; overflow-y: auto; padding: .5em 0 40vh; font-size: 1.35em; line-height: 1.45; }
+.tnm-ly { margin: 0 0 .55em; color: #fff; }
+.tnm-np-lyrics.timed .tnm-ly { color: var(--tnm-faint); transition: color .2s; }
+.tnm-np-lyrics.timed .tnm-ly.on { color: #fff; }
 .tnm-np-idle { text-align: center; padding: 4em 1em; color: var(--tnm-dim); }
 .tnm-np-idle > .material-icons { font-size: 4em; opacity: .5; }
 .tnm-np-idle h2 { color: #fff; font-weight: 500; margin: .4em 0 .2em; }

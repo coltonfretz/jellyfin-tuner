@@ -67,6 +67,10 @@
         lists: {},            // song lists on the current view, for "play from this song"
         sid: null,            // this browser's Jellyfin session id
         np: null, npTimer: null, tickTimer: null, queueIds: [],
+        // Now Playing extras (2026-11-05, Fretzflix review: "couldn't see a queue, shuffle,
+        // repeat or lyrics"). shuffle is ours to remember: jellyfin-web obeys "shuffle" but
+        // never reports it back (repeat it does report, in PlayState.RepeatMode).
+        shuffle: false, repeat: 'RepeatNone', npPane: 'next', lyrics: {},
         searchTimer: null, searchQ: '',
         azMode: 'albums',
     };
@@ -239,11 +243,11 @@
         return M.sid;
     }
 
-    async function command(path, params) {
+    async function command(path, params, body) {
         for (const fresh of [false, true]) {
             const sid = await sessionId(fresh);
             if (!sid) continue;
-            try { await post(`Sessions/${sid}/${path}`, params); return true; } catch (e) { /* session changed: look it up again */ }
+            try { await post(`Sessions/${sid}/${path}`, params, body); return true; } catch (e) { /* session changed: look it up again */ }
         }
         toast("Couldn't reach the player. Try reloading the page.");
         return false;
@@ -257,6 +261,9 @@
         const from = Math.max(0, Math.min(start, ids.length - MAX_QUEUE));
         const slice = ids.slice(from, from + MAX_QUEUE);
         if (window.Tuner && window.Tuner.stopRadio) window.Tuner.stopRadio();
+        // A new list plays in the order it was picked (the Shuffle buttons shuffle the list
+        // itself before sending it), so Now Playing's shuffle goes back to off.
+        if (M.shuffle) { M.shuffle = false; command('Command', null, { Name: 'SetShuffleQueue', Arguments: { ShuffleMode: 'Sorted' } }); }
         M.queueIds = slice;
         const ok = await command('Playing', { playCommand: 'PlayNow', itemIds: slice.join(','), startIndex: start - from });
         if (ok && M.tab === 'nowplaying') setTimeout(pollNp, 700);
@@ -270,8 +277,8 @@
     async function playAlbum(id, shuffled) { const ids = songsOf(await albumTracks(id)); playIds(shuffled ? shuffle(ids) : ids, 0); }
     async function playPlaylist(id, shuffled) { const ids = songsOf(await playlistTracks(id)); playIds(shuffled ? shuffle(ids) : ids, 0); }
 
-    // Tuner's radio started: pause the library song so the two don't play over each other.
-    function pauseJellyfin() { if (M.sid) command('Playing/Pause'); }
+    // (Radio stopping Jellyfin's player when it starts lives in tuner.js, stopJellyfin(),
+    // so it works with the Music page off too.)
 
     function toast(msg) {
         if (window.Tuner && window.Tuner.toast) window.Tuner.toast(msg);
@@ -680,6 +687,7 @@
         const item = s && s.NowPlayingItem && s.NowPlayingItem.MediaType === 'Audio' ? s.NowPlayingItem : null;
         const prev = M.np;
         M.np = item ? { item, pos: s.PlayState.PositionTicks || 0, paused: !!s.PlayState.IsPaused, at: Date.now(), queue: (s.NowPlayingQueue || []).map((q) => q.Id) } : null;
+        if (item && s.PlayState.RepeatMode) M.repeat = s.PlayState.RepeatMode;
         if (!item) { drawNpIdle(host); return; }
         if (prev && prev.item.Id === item.Id && host.dataset.id === item.Id) { tickNp(); updateNpButtons(); return; }
         host.dataset.id = item.Id;
@@ -693,13 +701,22 @@
                     <div class="tnm-np-bar" data-act="seek" role="slider" aria-label="Position" tabindex="0"><div class="tnm-np-fill"></div></div>
                     <div class="tnm-np-times"><span class="tnm-np-pos"></span><span class="tnm-np-left"></span></div>
                     <div class="tnm-np-controls">
+                        <button type="button" class="tnm-np-mode tnm-np-shuffle" data-act="np-shuffle" aria-label="Shuffle"><span class="material-icons" aria-hidden="true">shuffle</span></button>
                         <button type="button" data-act="np" data-cmd="PreviousTrack" aria-label="Previous"><span class="material-icons" aria-hidden="true">skip_previous</span></button>
                         <button type="button" class="tnm-np-play" data-act="np" data-cmd="PlayPause" aria-label="Pause"><span class="material-icons" aria-hidden="true">pause</span></button>
                         <button type="button" data-act="np" data-cmd="NextTrack" aria-label="Next"><span class="material-icons" aria-hidden="true">skip_next</span></button>
+                        <button type="button" class="tnm-np-mode tnm-np-repeat" data-act="np-repeat" aria-label="Repeat"><span class="material-icons" aria-hidden="true">repeat</span></button>
                     </div></div></div>
-            <div class="tnm-np-next"></div>`;
+            <div class="tnm-np-panes" role="tablist">
+                <button type="button" class="tnm-np-pane" data-act="np-pane" data-pane="next" role="tab">Up next</button>
+                <button type="button" class="tnm-np-pane" data-act="np-pane" data-pane="lyrics" role="tab"${item.HasLyrics === false ? ' hidden' : ''}>Lyrics</button>
+            </div>
+            <div class="tnm-np-next"></div>
+            <div class="tnm-np-lyrics" hidden></div>`;
         tickNp(); updateNpButtons();
         drawUpNext(item.Id);
+        drawLyrics(item);
+        showPane();
     }
 
     async function drawUpNext(currentId) {
@@ -712,14 +729,19 @@
         ids = at >= 0 ? ids.slice(at + 1) : [];
         const host = $('.tnm-np-next');
         if (!host) return;
-        if (!ids.length) { host.innerHTML = ''; return; }
+        // Always says something, so the queue is easy to find (it used to vanish when empty).
+        if (!ids.length) { host.innerHTML = '<p class="tnm-np-note">Nothing queued after this song.</p>'; return; }
         try {
             const r = await get(`Users/${uid()}/Items`, { Ids: ids.slice(0, 25).join(',') });
             if (!M.np || M.np.item.Id !== currentId) return;
-            const byId = new Map((r.Items || []).map((s) => [s.Id, s]));
+            const byId = new Map((r.Items || []).filter((s) => s.Type === 'Audio').map((s) => [s.Id, s]));
             const songs = ids.slice(0, 25).map((x) => byId.get(x)).filter(Boolean);
+            if (!songs.length) { host.innerHTML = '<p class="tnm-np-note">Nothing queued after this song.</p>'; return; }
             // Clicking an upcoming song plays from it, keeping the rest of the queue after it.
-            host.innerHTML = `<h2 class="tnm-h2">Up next</h2>${songList('upnext', songs)}`;
+            // With shuffle on, Jellyfin picks the order and doesn't say which, so the list
+            // says what's left without promising an order.
+            host.innerHTML = (M.shuffle ? `<p class="tnm-np-note">Shuffle is on. Still to play, in any order:</p>` : '')
+                + songList('upnext', songs);
             // Only 25 are shown, but the whole rest of the queue should come along.
             if (songs.length === Math.min(25, ids.length)) M.lists.upnext = ids;
         } catch (e) { host.innerHTML = ''; }
@@ -727,6 +749,7 @@
 
     function drawNpIdle(host) {
         delete host.dataset.id;
+        M.lyricsFor = null;
         const radio = window.Tuner && window.Tuner.radio ? window.Tuner.radio() : null;
         if (radio) {
             host.innerHTML = `<div class="tnm-np-main tnm-np-radio">
@@ -753,12 +776,97 @@
         if (fill) fill.style.width = len ? `${(pos / len) * 100}%` : '0';
         if (p) p.textContent = time(pos);
         if (l) l.textContent = len ? '-' + time(len - pos) : '';
+        tickLyrics(pos);
+    }
+
+    // ---------- Now Playing: lyrics, shuffle, repeat ----------
+
+    // Jellyfin's own lyrics (GET Audio/{id}/Lyrics; 404 when a song has none). Timed lines
+    // (with Start) light up as the song plays and keep the current line in the middle of
+    // the box; plain ones are just text to scroll. Fetched once per song.
+    async function drawLyrics(item) {
+        const box = $('.tnm-np-lyrics');
+        if (!box) return;
+        M.lyricsFor = item.Id;
+        let lines = M.lyrics[item.Id];
+        if (lines === undefined) {
+            try {
+                const r = await get(`Audio/${item.Id}/Lyrics`);
+                lines = (r && r.Lyrics || []).filter((x) => x && x.Text != null);
+            } catch (e) { lines = []; }
+            M.lyrics[item.Id] = lines;
+        }
+        if (M.lyricsFor !== item.Id) return;
+        const tab = $('.tnm-np-pane[data-pane="lyrics"]');
+        if (!lines.length) {
+            if (tab) tab.hidden = true;
+            box.innerHTML = '<p class="tnm-np-note">No lyrics for this song.</p>';
+            if (M.npPane === 'lyrics') showPane('next');
+            return;
+        }
+        if (tab) tab.hidden = false;
+        const timed = lines.some((x) => x.Start != null);
+        box.classList.toggle('timed', timed);
+        box.innerHTML = lines.map((x, i) => `<p class="tnm-ly" data-i="${i}"${timed && x.Start != null ? ` data-t="${x.Start}"` : ''}>${esc(x.Text) || '&nbsp;'}</p>`).join('');
+        M.lyLine = -1;
+        tickNp();
+    }
+
+    function tickLyrics(pos) {
+        const box = $('.tnm-np-lyrics.timed');
+        if (!box || box.hidden) return;
+        const lines = box.querySelectorAll('.tnm-ly[data-t]');
+        let cur = -1;
+        for (let i = 0; i < lines.length; i++) { if (Number(lines[i].dataset.t) <= pos) cur = i; else break; }
+        if (cur === M.lyLine) return;
+        M.lyLine = cur;
+        box.querySelectorAll('.tnm-ly.on').forEach((x) => x.classList.remove('on'));
+        if (cur < 0) return;
+        const el = lines[cur];
+        el.classList.add('on');
+        // Scroll the box, never the page, so reading the rest of the page isn't yanked around.
+        box.scrollTo({ top: el.offsetTop - box.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
+    }
+
+    function showPane(which) {
+        if (which) { M.npPane = which; store('npPane', which); }
+        const lyricsTab = $('.tnm-np-pane[data-pane="lyrics"]');
+        const pane = M.npPane === 'lyrics' && lyricsTab && !lyricsTab.hidden ? 'lyrics' : 'next';
+        document.querySelectorAll('.tnm-np-pane').forEach((b) => { b.classList.toggle('on', b.dataset.pane === pane); b.setAttribute('aria-selected', b.dataset.pane === pane); });
+        const next = $('.tnm-np-next'), ly = $('.tnm-np-lyrics');
+        if (next) next.hidden = pane !== 'next';
+        if (ly) ly.hidden = pane !== 'lyrics';
+        if (pane === 'lyrics') { M.lyLine = -1; tickNp(); }
+    }
+
+    const REPEAT_NEXT = { RepeatNone: 'RepeatAll', RepeatAll: 'RepeatOne', RepeatOne: 'RepeatNone' };
+    async function toggleShuffle() {
+        const on = !M.shuffle;
+        if (!(await command('Command', null, { Name: 'SetShuffleQueue', Arguments: { ShuffleMode: on ? 'Shuffle' : 'Sorted' } }))) return;
+        M.shuffle = on;
+        updateNpButtons();
+        if (M.np) drawUpNext(M.np.item.Id);
+        toast(on ? 'Shuffle on' : 'Shuffle off');
+    }
+    async function cycleRepeat() {
+        const next = REPEAT_NEXT[M.repeat] || 'RepeatAll';
+        if (!(await command('Command', null, { Name: 'SetRepeatMode', Arguments: { RepeatMode: next } }))) return;
+        M.repeat = next;
+        updateNpButtons();
+        toast({ RepeatNone: 'Repeat off', RepeatAll: 'Repeat all', RepeatOne: 'Repeat this song' }[next]);
     }
     function updateNpButtons() {
         const b = $('.tnm-np-play');
         if (!b || !M.np) return;
         b.setAttribute('aria-label', M.np.paused ? 'Play' : 'Pause');
         $('.material-icons', b).textContent = M.np.paused ? 'play_arrow' : 'pause';
+        const sh = $('.tnm-np-shuffle'), rp = $('.tnm-np-repeat');
+        if (sh) { sh.classList.toggle('on', M.shuffle); sh.setAttribute('aria-pressed', M.shuffle); sh.title = M.shuffle ? 'Shuffle is on' : 'Shuffle'; }
+        if (rp) {
+            rp.classList.toggle('on', M.repeat !== 'RepeatNone');
+            $('.material-icons', rp).textContent = M.repeat === 'RepeatOne' ? 'repeat_one' : 'repeat';
+            rp.title = { RepeatNone: 'Repeat', RepeatAll: 'Repeating all', RepeatOne: 'Repeating this song' }[M.repeat] || 'Repeat';
+        }
     }
     function stopNp() { clearInterval(M.npTimer); clearInterval(M.tickTimer); M.npTimer = M.tickTimer = null; }
 
@@ -805,6 +913,9 @@
             case 'shuffle-artist': return playIds(songsOf(await randomSongs({ ArtistIds: d.id })), 0);
             case 'shuffle-all': return playIds(songsOf(await randomSongs()), 0);
             case 'radio-toggle': if (window.Tuner) window.Tuner.toggleRadio(); return setTimeout(pollNp, 300);
+            case 'np-shuffle': return toggleShuffle();
+            case 'np-repeat': return cycleRepeat();
+            case 'np-pane': return showPane(d.pane);
             case 'np':
                 if (d.cmd === 'PlayPause' && M.np) { M.np.pos += M.np.paused ? 0 : (Date.now() - M.np.at) * 1e4; M.np.at = Date.now(); M.np.paused = !M.np.paused; updateNpButtons(); }
                 await command('Playing/' + d.cmd);
@@ -836,6 +947,7 @@
     }
 
     M.azMode = load('az', 'albums') === 'artists' ? 'artists' : 'albums';
+    M.npPane = load('npPane', 'next') === 'lyrics' ? 'lyrics' : 'next';
 
-    window.TunerMusic = { route: ROUTE, show, leave, tabsHtml, bind, classicOn, classicOff, pauseJellyfin };
+    window.TunerMusic = { route: ROUTE, show, leave, tabsHtml, bind, classicOn, classicOff };
 })();

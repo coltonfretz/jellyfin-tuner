@@ -34,6 +34,26 @@
     // "Request site address" (setting): a Request link to Seerr. The server only passes
     // http(s) addresses through.
     const REQUEST_URL = (ME && ME.dataset.requestUrl) || '';
+    const REQUEST_ROUTE = '#/tuner/request';
+    // Request opens INSIDE Fretzflix when it can (Fretzflix review 2026-11-05: the popup felt
+    // like leaving the app). It can only when the request site shares a "site" with the
+    // address Jellyfin is open on, e.g. requests.fretzflix.duckdns.org inside
+    // fretzflix.duckdns.org: browsers don't send a site its sign-in cookie inside another
+    // site's page, so Seerr would ask to sign in forever. Elsewhere (at home on
+    // jellyfin.home.internal) it still opens in a new tab.
+    // "Same site" here: the request host is the page's host, or under it, or under the
+    // page's parent when that parent still has 3+ labels (tv.fretzflix.duckdns.org ->
+    // fretzflix.duckdns.org; never just duckdns.org or home.internal). And both https.
+    const REQUEST_EMBED = (() => {
+        if (!REQUEST_URL) return false;
+        try {
+            const u = new URL(REQUEST_URL);
+            if (u.protocol !== 'https:' || location.protocol !== 'https:') return false;
+            const here = location.hostname, parent = here.split('.').slice(1).join('.');
+            const bases = [here].concat(parent.split('.').length >= 3 ? [parent] : []);
+            return bases.some((b) => u.hostname === b || u.hostname.endsWith('.' + b));
+        } catch (e) { return false; }
+    })();
     const PAGE_ID = 'tnr-radio-page';
     const NOWPLAYING_MS = 20000;
     const FAV_COLOR = '#B8860B';
@@ -157,9 +177,22 @@
         renderAll();
     }
 
+    // Radio and Jellyfin's own player share the speakers, so starting the radio STOPS
+    // whatever Jellyfin is playing in this browser. It used to pause it, which left
+    // Jellyfin's bottom bar showing the old song under a playing station (Fretzflix review
+    // 2026-11-05: "the mini-player kept showing the last song"). Stopping clears the bar;
+    // a video keeps its resume point as usual. Works with or without the Music page.
+    async function stopJellyfin() {
+        try {
+            const list = await ApiClient.getJSON(ApiClient.getUrl('Sessions', { deviceId: ApiClient.deviceId() }));
+            const mine = (list || []).find((x) => x.UserId === ApiClient.getCurrentUserId() && x.NowPlayingItem);
+            if (mine) await ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl(`Sessions/${mine.Id}/Playing/Stop`) });
+        } catch (e) { /* nothing playing, or no session yet: nothing to stop */ }
+    }
+
     function playLive(st, g, quiet) {
         if (!quiet) staticBlip();
-        if (music()) music().pauseJellyfin();
+        stopJellyfin();
         S.playing = { kind: 'live', station: st, genre: g };
         S.nowTitle = '';
         const a = audio();
@@ -172,7 +205,7 @@
 
     async function startJam(g) {
         staticBlip();
-        if (music()) music().pauseJellyfin();
+        stopJellyfin();
         S.jamQueue = [];
         S.playing = { kind: 'jam', track: null, genre: g };
         renderAll();
@@ -202,6 +235,29 @@
         const a = audio(); a.src = t.audio; a.play().catch(() => {});
         if (S.jamQueue.length < 4) refillJam(p.genre).then(renderAll);
         updateMediaSession(); renderAll();
+    }
+
+    // Is what's playing the thing the radio card is showing? The card follows the selected
+    // tab (Live or Jamendo) and genre, while the audio can be something else: a live station
+    // keeps playing when you switch to the Jamendo tab. Without this the Jamendo tab said
+    // "Press play to start" with the station's song as "Now playing" and a Pause button
+    // (Fretzflix review 2026-11-05).
+    function cardIsPlaying() {
+        const p = S.playing;
+        if (!p) return false;
+        if (S.mode === 'jamendo') {
+            const g = genresForMode()[S.gi];
+            return p.kind === 'jam' && !!g && p.genre.name === g.name;
+        }
+        return p.kind === 'live';
+    }
+
+    // The card's own Play button: on a tab showing something other than what's playing, it
+    // switches to this tab's station instead of pausing the other one. Everything else
+    // (mini player, media keys, Space, the Music page) keeps plain play/pause.
+    function cardPlay() {
+        if (S.playing && !cardIsPlaying()) { tuneTo(S.gi, S.si); return; }
+        togglePlay();
     }
 
     function togglePlay() {
@@ -474,7 +530,7 @@
     function renderCard() {
         const card = $('.tnr-card'); if (!card) return;
         const gs = genresForMode(); if (!gs.length) { card.innerHTML = ''; return; }
-        const p = S.playing, a = audio(), paused = !p || a.paused;
+        const p = S.playing, a = audio(), mine = cardIsPlaying(), paused = !mine || a.paused;
         const btn = (cls, icon, label, disabled) => `<button class="tnr-btn ${cls}" aria-label="${label}" title="${label}" ${disabled ? 'disabled' : ''}><span class="material-icons">${icon}</span></button>`;
         let tile, name, sub, controls;
 
@@ -489,7 +545,7 @@
             controls = btn('tnr-play', paused ? 'play_arrow' : 'pause', paused ? 'Play' : 'Pause')
                 + btn('tnr-skip', 'skip_next', 'Skip', !t)
                 + btn('tnr-keep', 'library_add', t && !t.downloadable ? "This artist doesn't allow downloads" : 'Keep in my library', !t || !t.downloadable)
-                + btn('tnr-stop', 'stop', 'Stop', !p);
+                + btn('tnr-stop', 'stop', 'Stop', !mine);
         } else {
             const g = gs[S.gi], st = g.stations[S.si] || g.stations[0];
             const shown = p && p.kind === 'live' ? p.station : st;
@@ -500,14 +556,18 @@
             controls = btn('tnr-prev', 'skip_previous', 'Previous station')
                 + btn('tnr-play', paused ? 'play_arrow' : 'pause', paused ? 'Play' : 'Pause')
                 + btn('tnr-next', 'skip_next', 'Next station')
-                + btn('tnr-fav', isFav(shown.number) ? 'star' : 'star_border', isFav(shown.number) ? 'Remove from favorites' : 'Add to favorites', !(p && p.kind === 'live'))
-                + btn('tnr-stop', 'stop', 'Stop', !p);
+                + btn('tnr-fav', isFav(shown.number) ? 'star' : 'star_border', isFav(shown.number) ? 'Remove from favorites' : 'Add to favorites', !mine)
+                + btn('tnr-stop', 'stop', 'Stop', !mine);
         }
 
         // Live radio: the box shows the song from the stream. Jamendo already shows the
         // song in the card itself, so the box previews what's next instead.
         let npLabel = 'Now playing', title;
-        if (S.mode === 'jamendo' && p && p.kind === 'jam' && p.track) {
+        if (p && !mine) {
+            // Something else is on: say what, and that Play here switches to this.
+            title = p.kind === 'live' ? `${p.station.name} is playing. Press play to switch.`
+                : `Jamendo ${p.genre.name} is playing. Press play to switch.`;
+        } else if (S.mode === 'jamendo' && p && p.kind === 'jam' && p.track) {
             const nx = S.jamQueue[0];
             npLabel = 'Up next';
             title = nx ? `${nx.artist} - ${nx.name}` : 'Finding more tracks…';
@@ -523,7 +583,7 @@
                 ? 'Left/right changes genre. N skips, K keeps, Space plays or pauses.'
                 : 'Arrow keys tune: up/down station, left/right genre. Space plays or pauses.'}</div>`;
         const on = (sel, fn) => { const b = $(sel, card); if (b) b.addEventListener('click', fn); };
-        on('.tnr-prev', () => step(-1)); on('.tnr-next', () => step(1)); on('.tnr-play', togglePlay);
+        on('.tnr-prev', () => step(-1)); on('.tnr-next', () => step(1)); on('.tnr-play', cardPlay);
         on('.tnr-fav', toggleFav); on('.tnr-stop', stop); on('.tnr-skip', () => nextJam()); on('.tnr-keep', keepTrack);
     }
 
@@ -941,6 +1001,7 @@
         radio: { route: ROUTE, id: PAGE_ID, title: 'Radio', loading: 'Loading stations…' },
         tv: { route: TV_ROUTE, id: TV_PAGE_ID, title: TV_ON ? 'TV' : 'Surf TV', loading: 'Loading channels…' },
         music: { route: MUSIC_ROUTE, id: 'tnr-music-page', title: 'Music', loading: 'Loading your music…' },
+        request: { route: REQUEST_ROUTE, id: 'tnr-request-page', title: 'Request', loading: 'Opening requests…' },
     };
 
     function pageEl(kind) {
@@ -1005,9 +1066,10 @@
         try {
             if (kind === 'radio') { if (!S.loaded) await loadCatalog(); renderPage(); }
             else if (kind === 'music') await music().show(page, location.hash);
+            else if (kind === 'request') renderRequestPage(page);
             else { if (!T.loaded) await loadTv(); else refreshGuide(); renderTvPage(); if (T.enabled) refreshLive(); }
         } catch (e) {
-            const what = { radio: 'the station list', tv: 'the channel list', music: 'your music library' }[kind];
+            const what = { radio: 'the station list', tv: 'the channel list', music: 'your music library', request: 'the request site' }[kind];
             // Radio inside Music keeps the Music tabs, so the way back is still there.
             const tabs = kind === 'radio' && music() ? music().tabsHtml('radio') : '';
             $('.tnr-wrap', page).innerHTML = `${tabs}<div class="tnr-empty">Couldn't load ${what}. Check the Tuner plugin settings.</div>`;
@@ -1049,16 +1111,17 @@
         if (location.hash.startsWith(ROUTE)) showPage('radio');
         else if (MUSIC_ON && music() && location.hash.startsWith(MUSIC_ROUTE)) showPage('music');
         else if (location.hash.startsWith(TV_ROUTE)) showPage('tv');
+        else if (REQUEST_EMBED && location.hash.startsWith(REQUEST_ROUTE)) showPage('request');
         else if (S.active) hidePage();
     }
 
     // Where an entry's link points: one of our pages, or (Request) the request site.
-    const entryHref = (kind) => (kind === 'request' ? REQUEST_URL : PAGES[kind].route);
+    const entryHref = (kind) => (kind === 'request' && !REQUEST_EMBED ? REQUEST_URL : PAGES[kind].route);
 
     function go(kind) {
         return (e) => {
             if (e) e.preventDefault();
-            if (kind === 'request') { openRequests(); return; }
+            if (kind === 'request' && !REQUEST_EMBED) { openRequests(); return; }
             const r = PAGES[kind].route;
             if (location.hash !== r) history.pushState({ page: 'tuner-' + kind }, PAGES[kind].title, r);
             showPage(kind);
@@ -1069,6 +1132,15 @@
     // of it (whatever is playing keeps playing). The desktop app's engine has no new-window
     // support, so window.open does nothing there; its NativeShell.openUrl hands the address
     // to the system browser instead.
+    // The embedded request site. The frame is made once and kept, so going back to Request
+    // finds Seerr where you left it (and doesn't load it again).
+    function renderRequestPage(page) {
+        const wrap = $('.tnr-wrap', page);
+        if ($('.tnr-req', wrap)) return;
+        wrap.innerHTML = `<div class="tnr-req-bar"><a href="${esc(REQUEST_URL)}" target="_blank" rel="noopener">Open in a new tab<span class="material-icons" aria-hidden="true">open_in_new</span></a></div>
+            <iframe class="tnr-req" src="${esc(REQUEST_URL)}" title="Request movies and shows" allow="fullscreen" referrerpolicy="no-referrer"></iframe>`;
+    }
+
     function openRequests() {
         if (window.NativeShell && typeof window.NativeShell.openUrl === 'function') window.NativeShell.openUrl(REQUEST_URL, '_blank');
         else window.open(REQUEST_URL, '_blank', 'noopener');
@@ -1783,6 +1855,46 @@
     }
 
     // What music.js needs from this file.
+    // =====================================================================
+    // Player controls stay up while the mouse rests on them
+    // =====================================================================
+    //
+    // jellyfin-web hides the video player's controls about 3 s after the mouse last MOVED,
+    // even with the mouse resting on them. A click a moment later lands on the video
+    // instead, which pauses it. Reported as "the settings gear paused the video instead of
+    // opening its menu" (Fretzflix review 2026-11-05) and reproduced: rest on the gear 5 s,
+    // click, the video pauses. Then Jellyfin Enhanced's pause screen covers the player a few
+    // seconds later and the next click resumes, so it looked like the gear toggles playback.
+    //
+    // While a video is open, once a second: if the mouse is resting on the controls, send
+    // jellyfin-web the small mouse move a hand on the mouse would make. It ignores moves
+    // under 10 px, so the nudge alternates 12 px either side of the real position. Checked
+    // by position rather than by which element the last move landed on, because the move
+    // that wakes the controls lands before they're drawn.
+    function keepOsdUnderMouse() {
+        const OSD = '.videoOsdBottom, .osdHeader';
+        // The player page stays in the document (hidden) after playback, so "open" = visible.
+        const playerOpen = () => !!document.querySelector('#videoOsdPage:not(.hide) .videoOsdBottom');
+        let timer = null, at = null, flip = false;
+        const tick = () => {
+            if (!playerOpen()) { clearInterval(timer); timer = null; return; }
+            const over = at && document.elementFromPoint(at.x, at.y);
+            if (!over || !over.closest(OSD)) return;
+            flip = !flip;
+            const d = flip ? 12 : -12;
+            over.dispatchEvent(new PointerEvent('pointermove', {
+                bubbles: true, pointerType: 'mouse',
+                clientX: at.x + d, clientY: at.y, screenX: at.sx + d, screenY: at.sy,
+            }));
+        };
+        document.addEventListener('pointermove', (e) => {
+            if (!e.isTrusted || e.pointerType !== 'mouse') return;
+            at = { x: e.clientX, y: e.clientY, sx: e.screenX, sy: e.screenY };
+            if (!timer && playerOpen()) timer = setInterval(tick, 1000);
+        }, { passive: true, capture: true });
+    }
+    keepOsdUnderMouse();
+
     window.Tuner = {
         route,
         go: (kind) => go(kind)(),
