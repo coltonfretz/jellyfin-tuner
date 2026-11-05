@@ -44,8 +44,21 @@
     // "Same site" here: the request host is the page's host, or under it, or under the
     // page's parent when that parent still has 3+ labels (tv.fretzflix.duckdns.org ->
     // fretzflix.duckdns.org; never just duckdns.org or home.internal). And both https.
+    // The browser must also be new enough to RUN the request site. Seerr 3.5 is a Next.js
+    // 16 build aimed at Chrome 111+: its scripts use `??=` (a syntax error before Chrome 85,
+    // which kills the whole script), structuredClone (98) and Array.at (92). Jellyfin's
+    // desktop app runs Chromium 83-87, so there Seerr showed its server-drawn page with no
+    // working script, and "Sign in" just reloaded the form (2026-11-05, never reached
+    // Seerr). The test checks those features plus Array.toSorted (Chrome 110, Firefox 115,
+    // Safari 16) as a stand-in for "about Seerr's minimum". Failing it isn't an error:
+    // Request opens in the system browser instead, where Seerr works.
+    const CAN_RUN_REQUEST_SITE = (() => {
+        try { new Function('let a; a ??= 1; return a;')(); } catch (e) { return false; }
+        return typeof window.structuredClone === 'function' && typeof [].at === 'function' &&
+            typeof [].toSorted === 'function';
+    })();
     const REQUEST_EMBED = (() => {
-        if (!REQUEST_URL) return false;
+        if (!REQUEST_URL || !CAN_RUN_REQUEST_SITE) return false;
         try {
             const u = new URL(REQUEST_URL);
             if (u.protocol !== 'https:' || location.protocol !== 'https:') return false;
