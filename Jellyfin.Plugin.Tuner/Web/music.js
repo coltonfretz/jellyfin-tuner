@@ -68,8 +68,10 @@
         sid: null,            // this browser's Jellyfin session id
         np: null, npTimer: null, tickTimer: null, queueIds: [],
         // Now Playing extras (2026-11-05, Fretzflix review: "couldn't see a queue, shuffle,
-        // repeat or lyrics"). shuffle is ours to remember: jellyfin-web obeys "shuffle" but
-        // never reports it back (repeat it does report, in PlayState.RepeatMode).
+        // repeat or lyrics"). Both come back from the session: repeat as
+        // PlayState.RepeatMode, shuffle as PlayState.PlaybackOrder ("Shuffle"/"Default"), so
+        // shuffle turned on from Jellyfin's own bar shows here too. What jellyfin-web never
+        // reports is the shuffled ORDER, so Up next can't list it in order.
         shuffle: false, repeat: 'RepeatNone', npPane: 'next', lyrics: {},
         searchTimer: null, searchQ: '',
         azMode: 'albums',
@@ -688,8 +690,18 @@
         const prev = M.np;
         M.np = item ? { item, pos: s.PlayState.PositionTicks || 0, paused: !!s.PlayState.IsPaused, at: Date.now(), queue: (s.NowPlayingQueue || []).map((q) => q.Id) } : null;
         if (item && s.PlayState.RepeatMode) M.repeat = s.PlayState.RepeatMode;
+        let shuffleChanged = false;
+        if (item && s.PlayState.PlaybackOrder) {
+            const sh = s.PlayState.PlaybackOrder === 'Shuffle';
+            shuffleChanged = sh !== M.shuffle;
+            M.shuffle = sh;
+        }
         if (!item) { drawNpIdle(host); return; }
-        if (prev && prev.item.Id === item.Id && host.dataset.id === item.Id) { tickNp(); updateNpButtons(); return; }
+        if (prev && prev.item.Id === item.Id && host.dataset.id === item.Id) {
+            tickNp(); updateNpButtons();
+            if (shuffleChanged) drawUpNext(item.Id);
+            return;
+        }
         host.dataset.id = item.Id;
         const artists = (item.Artists && item.Artists.length ? item.Artists.join(', ') : item.AlbumArtist) || '';
         const albumHref = item.AlbumId ? `${ROUTE}/album?id=${item.AlbumId}` : '';
