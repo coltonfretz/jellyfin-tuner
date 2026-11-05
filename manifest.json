@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.3.2",
+        "changelog": "Embedded Request page fills the window exactly and no longer scrolls the page behind it",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v1.0.3.2/tuner_1.0.3.2.zip",
+        "checksum": "970923cf92e90fef15de483f5dc76609",
+        "timestamp": "2026-11-05T06:23:19Z"
+      },
+      {
         "version": "1.0.3.1",
         "changelog": "Player controls stay up while hovered, radio stops Jellyfin's player, Jamendo card fix, Request inside Jellyfin on the same site, Now Playing shuffle/repeat/lyrics",
         "targetAbi": "12.2.0.0",
