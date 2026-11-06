@@ -85,12 +85,22 @@
   .tnr-hint { display: none; }
 }
 
-/* Sidebar link inside Jellyfin 12's MUI drawer (newer layout). MUI's own styles are
-   generated class names we can't reuse, so this mimics a ListItemButton. */
-.tnr-nav-mui .tnr-nav-head { font-size: .875rem; line-height: 48px; padding: 0 16px; color: rgba(255, 255, 255, .7); }
-.tnr-nav-mui .tnr-nav-link { display: flex; align-items: center; gap: 32px; padding: 8px 16px; color: inherit; text-decoration: none; }
-.tnr-nav-mui .tnr-nav-link:hover { background: rgba(255, 255, 255, .08); }
-.tnr-nav-mui .material-icons { font-size: 24px; opacity: .85; }
+/* Side menu fallback for Jellyfin 12's MUI drawer when there's no library row to copy
+   (normally our entries are clones of Jellyfin's own rows, see injectNav). MUI's class
+   names are generated, so this mimics a ListItemButton. */
+.tnr-nav-item .tnr-nav-link { display: flex; align-items: center; padding: 8px 16px; color: inherit; text-decoration: none; }
+.tnr-nav-item .tnr-nav-link:hover { background: rgba(255, 255, 255, .08); }
+.tnr-nav-item .tnr-nav-link .material-icons { font-size: 24px; opacity: .85; margin-right: 32px; } /* not flex gap: Chromium 83 */
+
+/* "Can't find it? Request it" under an empty search (injectSearchRequest). It sits on
+   Jellyfin's own search page, outside .tnr-page, so it uses neutral colors that a theme
+   can retint. */
+.tnr-search-req { text-align: center; margin: -0.5em 0 2em; }
+.tnr-search-req a { display: inline-block; padding: .55em 1.2em; border-radius: 999px; color: inherit;
+  text-decoration: none; border: 1px solid rgba(255, 255, 255, .28); background: rgba(255, 255, 255, .06); }
+.tnr-search-req a:hover { background: rgba(255, 255, 255, .14); }
+/* Its own rule: Chromium 83 (desktop app) doesn't know :focus-visible and would drop :hover too. */
+.tnr-search-req a:focus-visible { background: rgba(255, 255, 255, .14); outline: 2px solid currentColor; outline-offset: 2px; }
 
 /* While one of our pages is open in Jellyfin 12's newer layout: the app bar's second
    toolbar belongs to whatever library page was open before (Albums, Play All...), and

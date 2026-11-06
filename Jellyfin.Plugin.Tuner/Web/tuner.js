@@ -86,11 +86,31 @@
         revealActive: false, // scroll the playing station into view on the next list render
         pageVisible: false, prevPage: null, locSig: '', locTimer: null,
         nowTimer: null, retried: false,
+        reqNext: null,       // request-site address to open next (from an empty search)
     };
 
     // ---------- small helpers ----------
 
     const $ = (sel, root) => (root || document).querySelector(sel);
+    // Is the signed-in user a server admin? Only admins can change plugin settings, so only
+    // they see "check the settings" hints; friends get a plain message instead (Fretzflix
+    // review 2026-11-06: friends were told to fix Dashboard settings they can't open).
+    // Cached per user id, so switching users asks again.
+    const ADMIN = { id: null, is: false };
+    async function isAdmin() {
+        const id = window.ApiClient && ApiClient.getCurrentUserId && ApiClient.getCurrentUserId();
+        if (!id) return false;
+        if (ADMIN.id !== id) {
+            let is = false;
+            try { const u = await ApiClient.getCurrentUser(); is = !!(u && u.Policy && u.Policy.IsAdministrator); } catch (e) { /* not admin */ }
+            ADMIN.id = id; ADMIN.is = is;
+        }
+        return ADMIN.is;
+    }
+    // A friendly "not working" line, plus the settings hint for admins only.
+    async function troubleHtml(friendText, adminHint) {
+        return `<div class="tnr-empty">${esc(friendText)}${(await isAdmin()) ? ' ' + esc(adminHint) : ''}</div>`;
+    }
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     // An image address as CSS inside a style attribute. esc() alone isn't enough there:
     // the browser decodes &#39; back to ' before reading the CSS, so a quote or bracket in
@@ -880,7 +900,9 @@
         if (!page || !T.loaded) return;
         const root = $('.tnr-wrap', page);
         if (!T.enabled) {
-            root.innerHTML = '<div class="tnr-empty">TV needs Dispatcharr. Add its URL and API key in Dashboard, Plugins, Jellyfin-Tuned.</div>';
+            root.innerHTML = '<div class="tnr-empty">Live TV isn\u2019t set up on this server yet.</div>';
+            troubleHtml('Live TV isn\u2019t set up on this server yet.', 'It needs Dispatcharr: add its URL and API key in Dashboard -> Plugins -> Jellyfin-Tuned.')
+                .then((h) => { if (!T.enabled && root.isConnected) root.innerHTML = h; });
             return;
         }
         root.innerHTML = `
@@ -1086,7 +1108,9 @@
             const what = { radio: 'the station list', tv: 'the channel list', music: 'your music library', request: 'the request site' }[kind];
             // Radio inside Music keeps the Music tabs, so the way back is still there.
             const tabs = kind === 'radio' && music() ? music().tabsHtml('radio') : '';
-            $('.tnr-wrap', page).innerHTML = `${tabs}<div class="tnr-empty">Couldn't load ${what}. Check the Tuner plugin settings.</div>`;
+            const msg = await troubleHtml(`Couldn\u2019t load ${what} right now. Try again in a few minutes, and if it keeps happening, let the server owner know.`,
+                'Check the Jellyfin-Tuned plugin settings (Dashboard -> Plugins -> Jellyfin-Tuned).');
+            $('.tnr-wrap', page).innerHTML = `${tabs}${msg}`;
             if (tabs) music().bind($('.tnr-wrap', page));
         }
     }
@@ -1151,13 +1175,55 @@
     // finds Seerr where you left it (and doesn't load it again).
     function renderRequestPage(page) {
         const wrap = $('.tnr-wrap', page);
+        // Sent here from an empty search (requestSearch): open Seerr on that search instead
+        // of wherever the frame was.
+        const start = S.reqNext; S.reqNext = null;
         if (!$('.tnr-req', wrap)) {
             wrap.innerHTML = `<div class="tnr-req-bar"><a href="${esc(REQUEST_URL)}" target="_blank" rel="noopener">Open in a new tab<span class="material-icons" aria-hidden="true">open_in_new</span></a></div>
-            <iframe class="tnr-req" src="${esc(REQUEST_URL)}" title="Request movies and shows" allow="fullscreen" referrerpolicy="no-referrer"></iframe>`;
+            <iframe class="tnr-req" src="${esc(start || REQUEST_URL)}" title="Request movies and shows" allow="fullscreen" referrerpolicy="no-referrer"></iframe>`;
             window.addEventListener('resize', fitRequest);
+        } else if (start) {
+            $('.tnr-req', wrap).src = start;
         }
         window.scrollTo(0, 0);
         fitRequest();
+    }
+
+    // =====================================================================
+    // Empty search -> Request
+    // =====================================================================
+    //
+    // WHY (Fretzflix review 2026-11-06): searching for something the server doesn't have
+    // ended at "Sorry! No results found" with nothing to do next, which is exactly when a
+    // friend wants to ask for it. So under that message: "Can't find it? Request it",
+    // opening the request site's own search for the same words (Seerr: /search?query=).
+    // Only on Jellyfin's search page, and only with a Request site address set.
+    function searchTerm() {
+        const input = document.querySelector('#searchTextInput');
+        if (input && input.value.trim()) return input.value.trim();
+        const q = location.hash.split('?')[1] || '';
+        return (new URLSearchParams(q).get('query') || '').trim();
+    }
+    function requestSearch(term) {
+        const url = REQUEST_URL.replace(/\/+$/, '') + '/search?query=' + encodeURIComponent(term);
+        if (!REQUEST_EMBED) { openRequests(url); return; }
+        S.reqNext = url;
+        go('request')();
+    }
+    function injectSearchRequest() {
+        if (!REQUEST_URL || !location.hash.startsWith('#/search')) return;
+        const msg = document.querySelector('.mainAnimatedPage:not(.hide) .noItemsMessage');
+        const old = document.querySelector('.tnr-search-req');
+        const term = msg ? searchTerm() : '';
+        if (!term) { if (old) old.remove(); return; }
+        if (old && old.dataset.q === term && old.previousElementSibling === msg) return;
+        if (old) old.remove();
+        const box = document.createElement('div');
+        box.className = 'tnr-search-req';
+        box.dataset.q = term;
+        box.innerHTML = '<a href="#">Can’t find it? Request it</a>';
+        box.firstChild.addEventListener('click', (e) => { e.preventDefault(); requestSearch(term); });
+        msg.after(box);
     }
 
     // The request site scrolls itself, so the frame fills exactly the window below where it
@@ -1170,9 +1236,10 @@
         f.style.height = Math.max(240, window.innerHeight - f.getBoundingClientRect().top - 12) + 'px';
     }
 
-    function openRequests() {
-        if (window.NativeShell && typeof window.NativeShell.openUrl === 'function') window.NativeShell.openUrl(REQUEST_URL, '_blank');
-        else window.open(REQUEST_URL, '_blank', 'noopener');
+    function openRequests(url) {
+        const to = url || REQUEST_URL;
+        if (window.NativeShell && typeof window.NativeShell.openUrl === 'function') window.NativeShell.openUrl(to, '_blank');
+        else window.open(to, '_blank', 'noopener');
     }
 
     // =====================================================================
@@ -1215,27 +1282,61 @@
         }
     }
 
+    // Our entries sit IN the side menu's Libraries list, next to Movies, Shows and Music.
+    // WHY (Fretzflix review 2026-11-06): they used to be a section of their own under a
+    // "Jellyfin-Tuned" heading, so friends saw the plugin's name, TV sat apart from the
+    // other things to watch, and the heading's indent matched neither list around it.
+    // Placement: TV right after Music (where Live TV, which TV takes in, would be);
+    // Request last, after every library, since it's "not in here yet".
+    // MUI layout: each entry is a clone of one of Jellyfin's own library rows, so it gets
+    // the exact spacing and hover; React may redraw the list and drop them, and the body
+    // observer calls this again. Classic layout: the same rows Jellyfin's links use.
     function injectNav() {
         const t = sidebarTarget();
-        if (!t || t.el.querySelector('.tnr-nav[data-v="2"]')) return;
-        document.querySelectorAll('.tnr-nav').forEach((n) => n.remove());
-        const section = document.createElement('div');
-        section.className = 'tnr-nav' + (t.kind === 'mui' ? ' tnr-nav-mui' : '');
-        section.dataset.v = '2';
-        section.innerHTML = (t.kind === 'mui' ? '<div class="tnr-nav-head">Jellyfin-Tuned</div>' : '<h3 class="sidebarHeader">Jellyfin-Tuned</h3>')
-            + ENTRIES.map((en) => (t.kind === 'mui'
-                ? `<a class="tnr-nav-link" data-kind="${en.kind}" href="${entryHref(en.kind)}"><span class="material-icons" aria-hidden="true">${en.material}</span><span>${en.label}</span></a>`
-                : `<a is="emby-linkbutton" data-kind="${en.kind}" class="navMenuOption lnkMediaFolder emby-button" href="${entryHref(en.kind)}">
-                       <span class="material-icons navMenuOptionIcon" aria-hidden="true">${en.material}</span>
-                       <span class="sectionName navMenuOptionText">${en.label}</span></a>`)).join('');
-        section.querySelectorAll('a').forEach((a) => a.addEventListener('click', (e) => { go(a.dataset.kind)(e); closeDrawer(t.kind); }));
-        if (t.kind === 'legacy') {
-            const media = t.el.querySelector('.libraryMenuOptions');
-            if (media) t.el.insertBefore(section, media); else t.el.appendChild(section);
-        } else {
-            const firstList = t.el.querySelector('ul');
-            if (firstList && firstList.parentNode === t.el) firstList.after(section); else t.el.appendChild(section);
-        }
+        if (!t) return;
+        const list = t.kind === 'mui'
+            ? t.el.querySelector('ul.MuiList-subheader')
+            : t.el.querySelector('.libraryMenuOptions');
+        // No libraries list drawn yet (signing in, menu still building): try on the next redraw.
+        if (!list || list.querySelector('.tnr-nav-item[data-v="3"]')) return;
+        document.querySelectorAll('.tnr-nav, .tnr-nav-item').forEach((n) => n.remove());
+        const rows = t.kind === 'mui'
+            ? Array.from(list.querySelectorAll(':scope > li'))
+            : Array.from(list.querySelectorAll('a.navMenuOption'));
+        const model = rows.find((r) => r.querySelector('svg, a') || r.tagName === 'A');
+        const hrefIn = (r) => (r.tagName === 'A' ? hrefOf(r) : hrefOf(r.querySelector('a') || r));
+        let anchor = rows.find((r) => /collectionType=music\b/.test(hrefIn(r)));
+        ENTRIES.forEach((en) => {
+            let item;
+            if (t.kind === 'mui' && model) {
+                item = model.cloneNode(true);
+                const a = item.querySelector('a') || item;
+                a.setAttribute('href', entryHref(en.kind));
+                a.classList.remove('Mui-selected');
+                const path = item.querySelector('svg path');
+                if (path) path.setAttribute('d', ICONS[en.kind]);
+                const svg = item.querySelector('svg');
+                if (svg) svg.removeAttribute('data-testid');
+                const text = item.querySelector('.MuiListItemText-primary');
+                if (text) text.textContent = en.label;
+            } else if (t.kind === 'mui') {
+                item = document.createElement('li');
+                item.innerHTML = `<a class="tnr-nav-link" href="${entryHref(en.kind)}"><span class="material-icons" aria-hidden="true">${en.material}</span><span>${en.label}</span></a>`;
+            } else {
+                item = document.createElement('a');
+                item.setAttribute('is', 'emby-linkbutton');
+                item.className = 'navMenuOption lnkMediaFolder emby-button';
+                item.setAttribute('href', entryHref(en.kind));
+                item.innerHTML = `<span class="material-icons navMenuOptionIcon" aria-hidden="true">${en.material}</span>
+                       <span class="sectionName navMenuOptionText">${en.label}</span>`;
+            }
+            item.classList.add('tnr-nav-item');
+            item.dataset.v = '3';
+            item.dataset.kind = en.kind;
+            item.addEventListener('click', (e) => { go(en.kind)(e); closeDrawer(t.kind); });
+            if (en.kind !== 'request' && anchor && anchor.parentNode === list) { anchor.after(item); anchor = item; }
+            else list.appendChild(item);
+        });
     }
 
     const svgIcon = (kind) => `<svg class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium" focusable="false" aria-hidden="true" viewBox="0 0 24 24" style="width:1em;height:1em;font-size:1.5rem;fill:currentColor"><path d="${ICONS[kind]}"></path></svg>`;
@@ -1541,12 +1642,19 @@
                 // icons then: with the menu button there, Radio and Surf TV are in the side menu;
                 // on our own pages (no side menu) they're offered in More instead (tuckedItems).
                 // An attribute, so the body observer doesn't loop on it.
-                const icons = bar.querySelectorAll('.tnr-topicon');
+                // One at a time, Request last (Fretzflix review 2026-11-06: at 390 px Request
+                // was the first thing to go, while for a friend it matters more than TV).
+                const icons = Array.from(bar.querySelectorAll('.tnr-topicon'));
                 icons.forEach((b) => b.removeAttribute('data-tnr-hidden'));
                 const carrier = bar.querySelector('button[aria-label="Open Menu"]')
                     || (stack && (jellyfinMore(stack) || stack.querySelector(':scope > .tnr-more')));
-                if (icons.length && carrier && barCrowded(bar)) {
-                    icons.forEach((b) => b.setAttribute('data-tnr-hidden', ''));
+                if (icons.length && carrier) {
+                    const order = icons.filter((b) => b.dataset.kind !== 'request')
+                        .concat(icons.filter((b) => b.dataset.kind === 'request'));
+                    for (const b of order) {
+                        if (!barCrowded(bar)) break;
+                        b.setAttribute('data-tnr-hidden', '');
+                    }
                 }
             }
             return;
@@ -1881,6 +1989,15 @@
     function hideStrayPages() {
         if (!S.active || !location.hash.startsWith('#/tuner/')) return;
         document.querySelectorAll('.mainAnimatedPage:not(.hide):not(.tnr-page)').forEach((p) => p.classList.add('hide'));
+        keepOurTitle();
+    }
+    // That same "page not found" view also renames the browser tab ("Page not found" when
+    // #/tuner/request was opened directly, Fretzflix review 2026-11-06). Put our page's
+    // title back. Not on Music, whose own views (an album, an artist) set their titles.
+    function keepOurTitle() {
+        if (!S.active || S.active === 'music' || !location.hash.startsWith('#/tuner/')) return;
+        const want = PAGES[S.active].title;
+        if (document.title !== want) document.title = want;
     }
 
     // What music.js needs from this file.
@@ -2077,8 +2194,10 @@
         let pending = false;
         new MutationObserver(() => {
             if (pending) return; pending = true;
-            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectSections(); });
+            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectSections(); injectSearchRequest(); });
         }).observe(document.body, { childList: true, subtree: true });
+        // The tab title lives in <head>, which the body observer doesn't see.
+        new MutationObserver(keepOurTitle).observe(document.head, { childList: true, subtree: true, characterData: true });
         // Rotating a phone or resizing the window changes how many dial numbers fit.
         let rz;
         // It also changes whether our top bar links fit, and resizing within Jellyfin's

@@ -10,13 +10,13 @@ Adds **Radio** and **Surf TV** pages to the Jellyfin web UI, an optional simpler
 
 ## What it adds
 
-- **Radio > Live radio:** internet radio stations from a station list you provide, on a tuning dial grouped by genre. Arrow keys or swipes tune, song titles from the stream show as they change, plus favorites, search, a "static" sound between stations (can be turned off), a mini player while you browse elsewhere, and lock screen / media key controls.
-- **Radio > Jamendo:** Creative Commons music from Jamendo, one track after another per genre, with skip and **Keep**. Keep saves the MP3 into your music library, only when the artist allows downloads.
+- **Radio -> Live radio:** internet radio stations from a station list you provide, on a tuning dial grouped by genre. Arrow keys or swipes tune, song titles from the stream show as they change, plus favorites, search, a "static" sound between stations (can be turned off), a mini player while you browse elsewhere, and lock screen / media key controls.
+- **Radio -> Jamendo:** Creative Commons music from Jamendo, one track after another per genre, with skip and **Keep**. Keep saves the MP3 into your music library, only when the artist allows downloads.
 - **Surf TV:** flip through channels like cable. Free streaming channels from **Dispatcharr**, and over-the-air channels from an **HDHomeRun** tuner. Up/down changes channel, type a number to jump, L goes back to the last channel, F is full screen.
 - **Music page (optional):** the Music links open a simpler page with four tabs. **Search** has a search box and a tile for each genre. **Catalog** has a daily Spotlight album, your playlists, a row per decade, a few genre-and-decade shelves that change every day ("2010s Hip Hop"), and everything A to Z by album or artist. **Now Playing** shows the song with big cover art, shuffle and repeat, what's up next, and the lyrics (timed lyrics light up line by line as the song plays). **Radio** is the Radio page, moved in from the top bar. Jellyfin's own music page stays one click away under **Classic view**. See [Music page](#music-page).
 - **TV section (optional):** one **TV** link for Surf TV, Jellyfin's Live TV and one TV library of your choice, as tabs: **Surf**, **Guide** and **Classics**. Live TV and that library leave the top bar and side menu, and in My Media the Live TV tile becomes TV, with a backdrop from one of your shows (a different one each day). The home page's Live TV row becomes TV too: its buttons are Surf, Guide and Classics, and an On Now card opens Surf on that channel. Guide and Classics are Jellyfin's own pages with the tabs added, so the guide grid, recordings and show pages all stay.
 - **Movies section (optional):** the same idea for a second movie library: the Movies link gets tabs **Movies** and **Classics**, and that library leaves the top bar, side menu and My Media.
-- **Request link (optional):** a **Request** link in the top bar and side menu for your Seerr or Jellyseerr site, so nobody has to remember its address. When the request site is on the same site as the address Jellyfin is open on (say `requests.example.com` and `example.com`, both https), it opens inside Jellyfin; otherwise it opens in a new tab, because browsers won't pass the request site its sign-in inside another site's page. The desktop app opens the new-tab case in the system browser.
+- **Request link (optional):** a **Request** link in the top bar and side menu for your Seerr or Jellyseerr site, so nobody has to remember its address. When the request site is on the same site as the address Jellyfin is open on (say `requests.example.com` and `example.com`, both https), it opens inside Jellyfin; otherwise it opens in a new tab, because browsers won't pass the request site its sign-in inside another site's page. The desktop app opens the new-tab case in the system browser. A search in Jellyfin that finds nothing gets a **Can't find it? Request it** link that opens the request site's search for the same words.
 - **Player controls stay put:** while the mouse rests on the video player's controls they stay on screen (Jellyfin hides them after 3 seconds even then, so a click meant for the settings gear could land on the video and pause it).
 - **Home page:** the Recently Added rows load a longer list and slide to the next set of posters every couple of minutes, and Recently Added in Music shows at most three albums per artist.
 - **My Media:** a seasonal tile (a collection that only shows up between two dates each year, Halloween by default), and library tiles that get a fresh background picture every few days.
@@ -31,15 +31,15 @@ Needs Jellyfin 12.2 or newer.
 
 **From the plugin catalog (gets update notices):**
 
-1. Dashboard > Plugins > **Repositories** (Catalog > the gear icon on some versions) > add:
+1. Dashboard -> Plugins -> **Repositories** (Catalog -> the gear icon on some versions) -> add:
    - Name: `Jellyfin-Tuned`
    - URL: `https://raw.githubusercontent.com/coltonfretz/jellyfin-tuner/main/manifest.json`
-2. Dashboard > Plugins > **Catalog** > Jellyfin-Tuned > Install.
+2. Dashboard -> Plugins -> **Catalog** -> Jellyfin-Tuned -> Install.
 3. Restart Jellyfin.
 
 **By hand:** download `tuner_<version>.zip` from [Releases](https://github.com/coltonfretz/jellyfin-tuner/releases), put `Jellyfin.Plugin.Tuner.dll` in a folder named `Jellyfin-Tuned_<version>` inside Jellyfin's plugins folder (`/config/plugins` in the official Docker image), and restart Jellyfin.
 
-Then open **Dashboard > Plugins > Jellyfin-Tuned** to set it up, and reload the web UI.
+Then open **Dashboard -> Plugins -> Jellyfin-Tuned** to set it up, and reload the web UI.
 
 ## Settings
 
@@ -97,7 +97,7 @@ While a season is on, a tile for its collection appears at the front of everyone
 
 - Curate with Jellyfin's own **Add to collection**. The collection's Thumb image is the tile; Primary is the poster on its page.
 - Playlists inside a season's collection are public in season and private (owner only) out of season, so a holiday mix isn't sitting in everyone's Playlists in June.
-- The daily task **Dashboard > Scheduled Tasks > Jellyfin-Tuned > Seasons and library tiles** (04:10 and at startup) handles the playlists, the Collections tile and the library pictures. Run it by hand after changing a season's dates.
+- The daily task **Dashboard -> Scheduled Tasks -> Jellyfin-Tuned -> Seasons and library tiles** (04:10 and at startup) handles the playlists, the Collections tile and the library pictures. Run it by hand after changing a season's dates.
 
 ## Music page
 
@@ -119,7 +119,7 @@ Radio and Surf TV (and Request, when set) sit in the top bar right after Live TV
 3. Turns Radio and Surf TV into icons next to Search, as on narrow screens.
 4. Moves Jellyfin's own links into More from the end, and finally shrinks the logo to its icon.
 
-On a crowded phone bar the icons hide; Radio and Surf TV are always in the side menu. It re-checks on resize.
+On a crowded phone bar the icons hide one at a time, Request last; every entry is always in the side menu, in the Libraries list (TV after Music, Request at the end). It re-checks on resize.
 
 ## How it works
 
