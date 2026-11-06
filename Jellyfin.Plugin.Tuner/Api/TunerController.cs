@@ -295,6 +295,24 @@ public class TunerController : ControllerBase
         return Ok(_seasons.ActiveTiles().Select(t => new { id = t.Id.ToString("N"), name = t.Name, imageType = t.ImageType, imageTag = t.ImageTag }));
     }
 
+    /// <summary>
+    /// Which libraries the TV and Movies sections take in as their "Classics" tab (names, as
+    /// in the settings; empty when that section is off). For other clients of the same server,
+    /// such as a TV app, so the names live only in these settings. Added 1.0.4.0: Fretzflix TV
+    /// had its own copy, and renaming a library would have broken one of them silently.
+    /// </summary>
+    [HttpGet("sections")]
+    [Authorize]
+    public ActionResult Sections()
+    {
+        var c = Plugin.Instance?.Configuration;
+        return Ok(new
+        {
+            tvClassics = c is { TvSection: true } ? (c.TvClassicsLibrary ?? string.Empty).Trim() : string.Empty,
+            moviesClassics = c is { MoviesSection: true } ? (c.MoviesClassicsLibrary ?? string.Empty).Trim() : string.Empty,
+        });
+    }
+
     // ---- Radio ----
 
     [HttpGet("radio")]
