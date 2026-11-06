@@ -30,7 +30,7 @@ Every part is off until you set it up.
 **Sections**
 
 - **TV:** one link with **Surf**, **Guide** and **Classics** tabs (Classics is a TV library you pick).
-- **Movies:** **Movies** and **Classics** tabs for a second movie library.
+- **Movies:** **Library** and **Classics** tabs for a second movie library.
 - **Request:** a link to your Seerr or Jellyseerr site. Opens inside Jellyfin when both share a site (`requests.example.com` and `example.com`, https), otherwise in a new tab. Searches that find nothing offer **Can't find it? Request it**.
 
 **Home and everywhere**

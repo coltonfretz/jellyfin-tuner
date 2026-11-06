@@ -1749,9 +1749,11 @@
             }
             if (MOVIES_ON) {
                 const cls = named(MOVIES_CLASSICS, 'movies');
-                // "Movies" is the first other movie library, in the account's library order.
+                // "Library" is the first other movie library, in the account's library order.
+                // Labelled Library, not Movies (2026-11-06): Jellyfin's own "Movies" view menu sits
+                // right beside the tabs, so the page read "Movies | Classics  Movies".
                 const main = cls && items.find((v) => v.CollectionType === 'movies' && v.Id !== cls.Id);
-                if (main) list.push({ key: 'movies', tabs: [libTab('movies', 'Movies', main, { main: true }), libTab('classics', 'Classics', cls)] });
+                if (main) list.push({ key: 'movies', tabs: [libTab('movies', 'Library', main, { main: true }), libTab('classics', 'Classics', cls)] });
             }
             SECT.list = list;
         } catch (e) { /* no sections: everything stays as Jellyfin has it */ }
