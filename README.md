@@ -1,82 +1,97 @@
 # Jellyfin-Tuned (Jellyfin plugin)
 
-Called Tuner before 1.0; the code, the repository and its web addresses still use that name.
+Radio and live TV pages for the Jellyfin web UI, plus a simpler Music page, tidier TV and Movies sections, a Request link and a few home page touches. Called Tuner before 1.0; the code and URLs still use that name.
 
-Adds **Radio** and **Surf TV** pages to the Jellyfin web UI, an optional simpler **Music** page, tidier **TV** and **Movies** sections, an optional **Request** link, plus a few home page touches: "Recently Added" rows that rotate, seasonal tiles in My Media, and library tiles that get a new picture every few days.
-
-> Built with Claude for my own server and shared as is. It works on my setup (Jellyfin 12.4, the web UI, Jellyfin Media Player and the Android app). Updated as needed. Issues and pull requests are welcome.
+> Built with Claude for my own server and shared as is. Tested on Jellyfin 12.4 (web UI, Jellyfin Media Player, Android app). Issues and pull requests are welcome.
 
 ![The Radio page: a tuning dial, genre buttons, the station list and the player](screenshots/radio.webp)
 
+## Contents
+
+- [What it adds](#what-it-adds)
+- [Install](#install)
+- [Settings](#settings)
+- [Station list format](#station-list-format)
+- [Details](#details)
+- [How it works](#how-it-works)
+- [Build and release](#build-and-release)
+
 ## What it adds
 
-- **Radio -> Live radio:** internet radio stations from a station list you provide, on a tuning dial grouped by genre. Arrow keys or swipes tune, song titles from the stream show as they change, plus favorites, search, a "static" sound between stations (can be turned off), a mini player while you browse elsewhere, and lock screen / media key controls.
-- **Radio -> Jamendo:** Creative Commons music from Jamendo, one track after another per genre, with skip and **Keep**. Keep saves the MP3 into your music library, only when the artist allows downloads.
-- **Surf TV:** flip through channels like cable. Free streaming channels from **Dispatcharr**, and over-the-air channels from an **HDHomeRun** tuner. Up/down changes channel, type a number to jump, L goes back to the last channel, F is full screen.
-- **Music page (optional):** the Music links open a simpler page with four tabs. **Search** has a search box and a tile for each genre. **Catalog** has a daily Spotlight album, your playlists, a row per decade, a few genre-and-decade shelves that change every day ("2010s Hip Hop"), and everything A to Z by album or artist. **Now Playing** shows the song with big cover art, shuffle and repeat, what's up next, and the lyrics (timed lyrics light up line by line as the song plays). **Radio** is the Radio page, moved in from the top bar. Jellyfin's own music page stays one click away under **Classic view**. See [Music page](#music-page).
-- **TV section (optional):** one **TV** link for Surf TV, Jellyfin's Live TV and one TV library of your choice, as tabs: **Surf**, **Guide** and **Classics**. Live TV and that library leave the top bar and side menu, and in My Media the Live TV tile becomes TV, with a backdrop from one of your shows (a different one each day). The home page's Live TV row becomes TV too: its buttons are Surf, Guide and Classics, and an On Now card opens Surf on that channel. Guide and Classics are Jellyfin's own pages with the tabs added, so the guide grid, recordings and show pages all stay.
-- **Movies section (optional):** the same idea for a second movie library: the Movies link gets tabs **Movies** and **Classics**, and that library leaves the top bar, side menu and My Media.
-- **Request link (optional):** a **Request** link in the top bar and side menu for your Seerr or Jellyseerr site, so nobody has to remember its address. When the request site is on the same site as the address Jellyfin is open on (say `requests.example.com` and `example.com`, both https), it opens inside Jellyfin; otherwise it opens in a new tab, because browsers won't pass the request site its sign-in inside another site's page. The desktop app opens the new-tab case in the system browser. A search in Jellyfin that finds nothing gets a **Can't find it? Request it** link that opens the request site's search for the same words.
-- **Player controls stay put:** while the mouse rests on the video player's controls they stay on screen (Jellyfin hides them after 3 seconds even then, so a click meant for the settings gear could land on the video and pause it).
-- **Home page:** the Recently Added rows load a longer list and slide to the next set of posters every couple of minutes, and Recently Added in Music shows at most three albums per artist.
-- **My Media:** a seasonal tile (a collection that only shows up between two dates each year, Halloween by default), and library tiles that get a fresh background picture every few days.
+Every part is off until you set it up.
 
-Each part stays hidden until you set it up, and a switch turns off the pages without uninstalling.
+**Pages**
 
-**Web-based apps only:** the browser, Jellyfin Media Player, and the official Android and iPhone apps, which wrap the web UI. The native TV apps (Android TV, Roku, Apple TV) draw their own screens and won't show any of this.
+- **Radio:** your own internet radio stations on a tuning dial, grouped by genre. Favorites, search, song titles, a mini player and media keys.
+- **Jamendo:** Creative Commons music by genre, with **Keep** to save a track to your library (when the artist allows it).
+- **Surf TV:** flip channels like cable. Free channels from Dispatcharr and antenna channels from an HDHomeRun.
+- **Music (optional):** Search, Catalog, Now Playing (with lyrics) and Radio tabs. Jellyfin's own music page stays under **Classic view**.
+
+**Sections**
+
+- **TV:** one link with **Surf**, **Guide** and **Classics** tabs (Classics is a TV library you pick).
+- **Movies:** **Movies** and **Classics** tabs for a second movie library.
+- **Request:** a link to your Seerr or Jellyseerr site. Opens inside Jellyfin when both share a site (`requests.example.com` and `example.com`, https), otherwise in a new tab. Searches that find nothing offer **Can't find it? Request it**.
+
+**Home and everywhere**
+
+- Recently Added rows rotate to the next posters every couple of minutes.
+- Seasonal tiles in My Media (a collection that shows only between two dates).
+- Library tiles get a new picture every few days.
+- The player's controls stay up while the mouse rests on them.
+
+**Works in** web-based apps: browsers, Jellyfin Media Player, and the official Android and iPhone apps. Native TV apps (Android TV, Roku, Apple TV) draw their own screens and won't show it.
 
 ## Install
 
 Needs Jellyfin 12.2 or newer.
 
-**From the plugin catalog (gets update notices):**
+**From the catalog (gets update notices)**
 
-1. Dashboard -> Plugins -> **Repositories** (Catalog -> the gear icon on some versions) -> add:
-   - Name: `Jellyfin-Tuned`
-   - URL: `https://raw.githubusercontent.com/coltonfretz/jellyfin-tuner/main/manifest.json`
+1. Dashboard -> Plugins -> **Repositories** -> add `https://raw.githubusercontent.com/coltonfretz/jellyfin-tuner/main/manifest.json` (name it `Jellyfin-Tuned`).
 2. Dashboard -> Plugins -> **Catalog** -> Jellyfin-Tuned -> Install.
 3. Restart Jellyfin.
 
-**By hand:** download `tuner_<version>.zip` from [Releases](https://github.com/coltonfretz/jellyfin-tuner/releases), put `Jellyfin.Plugin.Tuner.dll` in a folder named `Jellyfin-Tuned_<version>` inside Jellyfin's plugins folder (`/config/plugins` in the official Docker image), and restart Jellyfin.
+**By hand:** unzip `Jellyfin.Plugin.Tuner.dll` from [Releases](https://github.com/coltonfretz/jellyfin-tuner/releases) into `<plugins>/Jellyfin-Tuned_<version>/` (`/config/plugins` in the Docker image) and restart.
 
-Then open **Dashboard -> Plugins -> Jellyfin-Tuned** to set it up, and reload the web UI.
+Then set it up in Dashboard -> Plugins -> Jellyfin-Tuned and reload the web UI.
 
 ## Settings
 
-The settings page has three tabs. **Turn off the pages**, below them, stops adding Jellyfin-Tuned to the web UI without uninstalling.
+Three tabs. **Turn off the pages** (below them) hides everything without uninstalling.
 
 **Radio & TV**
 
 | Setting | What it does |
 |---|---|
-| Station list URL | Your radio stations, as an M3U file (format below). Empty: no live radio. |
-| Jamendo client ID | A free client ID from [devportal.jamendo.com](https://devportal.jamendo.com). Empty hides Jamendo. Only the public client ID is needed, never the secret. |
-| Keep folder | Where Keep saves Jamendo tracks: a folder inside an existing Music library, writable by Jellyfin (for example `/media/Music/Jamendo`). Empty turns Keep off. |
-| Dispatcharr URL and API key | Surf TV's free channels and their guide. The key stays on the server; browsers never get it. |
-| HDHomeRun address | Surf TV's antenna channels, for example `http://192.168.1.50`. Give the tuner a fixed address. |
-| Antenna channels to hide / rename | Hide channels by number (`7.3,23.3`), and give channels friendlier names than their call signs (`7.1=PBS;12.1=NBC`). |
+| Station list URL | Your stations as an M3U file ([format](#station-list-format)). Empty: no radio. |
+| Jamendo client ID | Free from [devportal.jamendo.com](https://devportal.jamendo.com). Client ID only, never the secret. Empty: no Jamendo. |
+| Keep folder | A writable folder inside a Music library, e.g. `/media/Music/Jamendo`. Empty: no Keep. |
+| Dispatcharr URL + API key | Surf TV's free channels and guide. The key never reaches browsers. |
+| HDHomeRun address | Surf TV's antenna channels, e.g. `http://192.168.1.50`. |
+| Antenna hide / rename | Hide by number (`7.3,23.3`); rename (`7.1=PBS;12.1=NBC`). |
 
 **Layout**
 
 | Setting | What it does |
 |---|---|
-| Music page | On/off (off by default, since it takes over the Music links). Also the fewest songs for something to count as an album (4): shorter releases are treated as singles and left off the album shelves, but Search and the artist and genre pages still show them. |
-| TV section | On/off (off by default), and the name of the TV library for the Classics tab (empty: no Classics tab). |
-| Movies section | On/off (off by default), and the name of the movie library for the Classics tab. |
-| Request site address | Your Seerr or Jellyseerr address (http or https). Empty (the default): no Request link. |
+| Music page | On/off, plus the fewest songs that count as an album (default 4). |
+| TV section | On/off, plus the TV library for the Classics tab. |
+| Movies section | On/off, plus the movie library for the Classics tab. |
+| Request site address | Your Seerr or Jellyseerr address. Empty: no Request link. |
 
 **Home**
 
 | Setting | What it does |
 |---|---|
-| Rotate Recently Added | On/off, and how often (20 s minimum). Also "spread music artists out". |
-| Seasons | `Name=MM-DD..MM-DD` pairs separated by semicolons, both days included, wrapping past New Year if needed (`Holidays=12-01..01-05`). Name is a Jellyfin collection. |
-| Hide the Collections library | Keeps the all-year Collections tile out of everyone's My Media, so seasonal collections only show in season. |
-| Library tile pictures | Days between new pictures for each library's tile, 0 for never. Set it to 0 if you uploaded your own library pictures, or they'll be replaced. |
+| Rotate Recently Added | On/off and how often (20 s minimum); optionally spread music artists out. |
+| Seasons | `Name=MM-DD..MM-DD;...`, both days included (`Holidays=12-01..01-05`). Name is a collection. |
+| Hide the Collections library | Keeps the all-year Collections tile out of My Media. |
+| Library tile pictures | Days between new pictures; 0 = never (use 0 if you uploaded your own). |
 
-### Station list
+## Station list format
 
-An M3U file at an address the Jellyfin server can reach. Each station is an `#EXTINF` line followed by its stream address:
+An M3U file the server can reach:
 
 ```
 #EXTM3U
@@ -84,82 +99,66 @@ An M3U file at an address the Jellyfin server can reach. Each station is an `#EX
 https://ice1.somafm.com/metal-128-mp3
 ```
 
-- The name is **`Genre · Station`**: everything before the ` · ` is the genre the station is grouped under.
-- `tvg-chno` (required; stations without it are skipped): the station's number on the dial. Keep the numbers stable, since favorites remember them.
-- `tvg-logo` (optional): a picture for the station.
-- `x-genre-color` (optional): the genre's color as `#RRGGBB`, on any station in that genre. Genres without one are gray.
+- **Name** is `Genre · Station`; the part before ` · ` is the genre.
+- **`tvg-chno`** (required): the dial number. Keep it stable; favorites use it.
+- **`tvg-logo`** (optional): the station's picture.
+- **`x-genre-color`** (optional): the genre's `#RRGGBB` color, on any one of its stations.
 
-[radio-browser.info](https://www.radio-browser.info) is a good source of stations and has a free API to build a list from.
+[radio-browser.info](https://www.radio-browser.info) has a free API to build a list from.
 
-## Seasonal tiles
+## Details
 
-While a season is on, a tile for its collection appears at the front of everyone's My Media. It looks and works like a library tile, and opens Jellyfin's own collection page. Out of season the tile is gone.
+**Music page**
 
-- Curate with Jellyfin's own **Add to collection**. The collection's Thumb image is the tile; Primary is the poster on its page.
-- Playlists inside a season's collection are public in season and private (owner only) out of season, so a holiday mix isn't sitting in everyone's Playlists in June.
-- The daily task **Dashboard -> Scheduled Tasks -> Jellyfin-Tuned -> Seasons and library tiles** (04:10 and at startup) handles the playlists, the Collections tile and the library pictures. Run it by hand after changing a season's dates.
+- Genres come from the songs' own tags. Genres under 8 albums share a **More genres** tile.
+- Decades with under 16 albums fold into one "Before ..." row.
+- Daily picks (Spotlight, shelf order) are the same for everyone and change each day. Nothing is stored.
+- Plays through Jellyfin's own player, so the queue, casting and lock screen work. No play history is used.
 
-## Music page
+**Seasonal tiles**
 
-Turn it on in the settings and reload the web UI. Every Music link (top bar, side menu, the My Media tile, "Recently Added in Music") then opens it instead of Jellyfin's music library.
+- In season, the collection's tile leads My Media (its Thumb image is the tile). Out of season it's gone.
+- Playlists in a season's collection are public in season and private out of it.
+- The task Dashboard -> Scheduled Tasks -> Jellyfin-Tuned -> **Seasons and library tiles** runs daily at 04:10. Run it by hand after changing dates.
 
-- **Genres** come from the songs' own genre tags, not the extra genres Jellyfin attaches to albums from online lookups. Lower case tags are tidied for display ("r&b" shows as R&B). Genres with fewer than 8 albums share a **More genres** tile.
-- **Decades** use each album's year. As soon as a decade has fewer than 16 albums, it and everything older share one "Before ..." row, so a library that leans recent doesn't get rows of three covers. Albums without a year are left out of the decade rows only.
-- **Daily picks** (the Spotlight, which shelves show, their order, the cover on each genre tile) are the same for everyone on a given day and change the next. Nothing is stored for this.
-- **Albums vs singles:** anything with fewer songs than the setting (4) isn't shown as an album. That keeps the one song you have from someone's compilation off the shelves.
-- **Playback goes through Jellyfin's own player,** so the bottom bar, the queue, casting and the lock screen work as usual. Starting a library song stops the radio, and starting the radio pauses the library song.
-- **No play history is used.** Every shelf is built from what the library already knows about each album.
+**Top bar and side menu**
 
-## Top bar
+- Tuner measures what fits. In order, it moves libraries into **More**, switches its own links to icons, then tucks Jellyfin's links and shrinks the logo.
+- On a crowded phone bar its icons hide one at a time, Request last.
+- The side menu always has every entry in Libraries: TV after Music, Request at the end.
 
-Radio and Surf TV (and Request, when set) sit in the top bar right after Live TV. Jellyfin decides from the window size whether the bar shows text links or icons, without knowing about the extra two, so Tuner measures what fits and, in order:
-
-1. Shows everything as text.
-2. Moves the libraries after Live TV into **More**, one at a time.
-3. Turns Radio and Surf TV into icons next to Search, as on narrow screens.
-4. Moves Jellyfin's own links into More from the end, and finally shrinks the logo to its icon.
-
-On a crowded phone bar the icons hide one at a time, Request last; every entry is always in the side menu, in the Libraries list (TV after Music, Request at the end). It re-checks on resize.
+**For other clients:** `GET /Tuner/sections` (signed in) returns the Classics library names, so a TV app can match them.
 
 ## How it works
 
 ```
-jellyfin-web  --(script added to index.html)-->  tuner.js + tuner.css   (pages, dial, player)
-     |
-     |  the signed-in user's own session
+jellyfin-web --(script added to index.html)--> tuner.js + tuner.css
+     |  signed-in session
      v
-/Tuner/radio, /Tuner/tv, /Tuner/jamendo/*      [needs sign-in]
-/Tuner/radio/{n}/stream, .../logo?t=<ticket>   ticket-signed (audio and img tags can't send headers)
-     |
-     +--> your station list, the stations themselves (relayed)
-     +--> Dispatcharr, HDHomeRun, api.jamendo.com
+/Tuner/radio, /Tuner/tv, /Tuner/jamendo/*, /Tuner/sections   [sign-in]
+/Tuner/radio/{n}/stream, .../logo?t=<ticket>                  [ticket]
+     +--> station list and streams (relayed), Dispatcharr, HDHomeRun, Jamendo
 ```
 
-Design choices, and why:
+- **Script injected as the page is served,** not edited on disk (read-only in Docker, wiped by updates). On any error the original page is served.
+- **Radio is relayed by the server** so https pages can play http streams and read song titles. Only your own stations, so it's not an open proxy.
+- **Tickets, not tokens, in URLs:** audio and image tags can't send headers. 12-hour tickets, signed with a key that changes each restart.
+- **Free channels play straight from their source** (faster than Live TV), relayed only when a source refuses web pages.
+- **Antenna channels are converted on the server** (MPEG-TS) and shared by everyone on the same channel. About one CPU core each; stops after the last viewer.
+- **Music plays through the browser's own session** ("play these", like casting from a phone), since jellyfin-web doesn't expose its player.
 
-- **The script is added to the web page as Jellyfin serves it, not by editing files on disk.** Jellyfin 12 has no hook for this, the web folder is read-only in the Docker image, and a web update wipes on-disk edits. If anything goes wrong, the original page is served untouched.
-- **Radio streams are relayed by the server.** An https page can't play plain http radio, and browsers can't read the song titles in the stream. The relay only plays addresses from your own station list, so it isn't an open proxy.
-- **Tickets instead of tokens in URLs.** Audio and image tags can't send a sign-in header, and Jellyfin 12 dropped `?api_key=` on most endpoints. Tuner signs a 12-hour ticket with a key that changes on every restart.
-- **Surf TV plays free channels straight from their servers** (much faster than opening them through Live TV), with a relay only for the few servers that refuse a web page.
-- **Antenna channels are converted on the server** (HDHomeRun sends MPEG-TS that browsers can't play) and shared by everyone watching the same channel. It costs about one CPU core per channel with software encoding, and stops shortly after the last viewer leaves. With every tuner in use, the channels already playing can still be joined: Surf skips the antenna channels that can't start, marks them in the guide, and says which ones are on.
-- **The Music page plays through Jellyfin's player by sending "play these" to the browser's own session** (the same command as playing on another device from a phone). jellyfin-web doesn't let outside scripts reach its player, and a second player of Tuner's own would lose the bottom bar, the queue and media keys.
-- **The Music page loads the whole album list once** (a few hundred KB for 1,600 albums) and groups it in the browser. Jellyfin can't filter albums by song count, and its album genres mix in online lookups.
-- **Jamendo's own radio channels aren't used:** they all redirect to unrelated streams. The track catalog works. Its API sometimes returns nothing, so each genre's tracks are cached for 12 hours, and a failed refresh keeps the old ones.
-
-## Build
+## Build and release
 
 ```bash
 ./build.sh
 ```
 
-Builds `dist/Jellyfin.Plugin.Tuner.dll` in the official .NET 10 SDK container, so Docker is all you need. `BUILD_HOST=user@host ./build.sh` builds on another machine over SSH.
+Builds `dist/Jellyfin.Plugin.Tuner.dll` in the .NET 10 SDK container (Docker only). `BUILD_HOST=user@host ./build.sh` builds over SSH.
 
-For a new version, bump `<AssemblyVersion>` in the `.csproj`. The script URL in the web page carries the version, so browsers only fetch the new script after a bump. `./release.sh "what changed"` builds it, makes the GitHub Release, and adds it to `manifest.json`.
+To release: bump `<AssemblyVersion>` in the `.csproj` (browsers only fetch the new script after a bump), then `./release.sh "what changed"`.
 
-### Trying a script change on a live server without installing it
-
-In a new browser tab at `/web/manifest.json` (same address, no Jellyfin app running in it): fetch `/web/index.html` and the live `/Tuner/client.js` and `/Tuner/client.css`, apply your change as text replacements, point the script and link tags at `blob:` URLs of the changed files, run `history.replaceState(null, '', '/web/#/home')`, then `document.write` the page. It runs with that browser's own sign-in. Don't add a `<base>` tag. Close the tab after testing Surf TV, since it tunes a channel when it opens.
+**Testing a script change without installing:** in a tab at `/web/manifest.json`, fetch `/web/index.html`, `/Tuner/client.js` and `/Tuner/client.css`, apply your edits, point the tags at `blob:` URLs, `history.replaceState(null, '', '/web/#/home')`, then `document.write` the page. No `<base>` tag. Close it after Surf TV (it tunes a channel).
 
 ## License
 
-MIT. See [LICENSE](LICENSE). hls.js (used for Surf TV) is Apache 2.0: `Jellyfin.Plugin.Tuner/Web/hls.LICENSE`.
+MIT, see [LICENSE](LICENSE). hls.js (Surf TV) is Apache 2.0: `Jellyfin.Plugin.Tuner/Web/hls.LICENSE`.
