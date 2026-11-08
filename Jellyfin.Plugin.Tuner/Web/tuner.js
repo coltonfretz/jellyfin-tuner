@@ -1382,7 +1382,8 @@
         const others = Array.from(stack.children).filter((c) => c.tagName !== 'A' && c !== jfMore && !c.classList.contains('tnr-more'));
         const w = (label) => oneLineWidth(model, label);   // every bar link has the same padding and icon
         const ours = ENTRIES.reduce((sum, en) => sum + w(en.label), 0);
-        const moreW = jfMore ? jfMore.getBoundingClientRect().width : w('More');   // label + arrow ~ label + icon
+        // label + arrow ~ label + icon; measured only while shown (we may have hidden it)
+        const moreW = jfMore && jfMore.offsetWidth ? jfMore.getBoundingClientRect().width : w('More');
         const othersW = others.reduce((sum, c) => sum + c.getBoundingClientRect().width, 0);
         // Space the stack can have: the bar minus its padding and what everything else in it
         // (the icon cluster on the right, the user button) actually holds. Measured by
@@ -1576,8 +1577,11 @@
             const links = all.filter((a) => !a.hasAttribute('data-tnr-merged'));
             // Ours go right after Live TV. When Live TV is folded into TV, they take its place:
             // after the last visible link before it (Music), measured on that visible link.
+            // When Jellyfin has moved Live TV into its own More (a narrower window), they go
+            // after the last library still in the bar: falling back to links[1] put them
+            // right after Favorites (desktop app at 1028 px, 2026-11-07).
             const liveLink = all.find((a) => hrefOf(a).startsWith('#/livetv'));
-            const place = liveLink || links[1];
+            const place = liveLink || null;
             const model = liveLink && !liveLink.hasAttribute('data-tnr-merged') ? liveLink
                 : (liveLink ? links.filter((a) => a.compareDocumentPosition(liveLink) & Node.DOCUMENT_POSITION_FOLLOWING).pop() : null) || links[1];
             const jfWide = all.some((a) => hrefOf(a).startsWith('#/home?tab') || hrefOf(a).startsWith('#/livetv'));
@@ -1598,7 +1602,7 @@
             if (jfMore) hookJellyfinMore(jfMore);
             if (plan.text) {
                 document.querySelectorAll('.tnr-topicon').forEach((n) => n.remove());
-                let anchor = place || model;
+                let anchor = place || links.filter((a) => !plan.tucked.includes(a)).pop() || model;
                 ENTRIES.forEach((en) => {
                     let a = stack.querySelector(`.tnr-topnav[data-kind="${en.kind}"]`);
                     if (!a) {
@@ -1613,8 +1617,11 @@
                         Array.from(a.childNodes).filter((n) => n.nodeType === 3).forEach((n) => n.remove());
                         a.appendChild(document.createTextNode(en.label));
                         a.addEventListener('click', go(en.kind));
-                        anchor.after(a);
                     }
+                    // Also moves ours when the anchor changed (Jellyfin moving Live TV in or out
+                    // of its More as the window is resized). Already in place: no DOM change,
+                    // so the body observer doesn't loop.
+                    if (anchor.nextElementSibling !== a) anchor.after(a);
                     anchor = a;
                 });
             } else {
@@ -1657,6 +1664,11 @@
                     }
                 }
             }
+            // Jellyfin's More can end up holding only libraries a section took in (Live TV and
+            // both Classics in the desktop app at 1028 px), which we hide in its menu, so it
+            // opened empty. Hide the button then. Text layout only: with icons, More may be
+            // carrying our hidden ones.
+            if (jfMore) jfMore.toggleAttribute('data-tnr-merged', plan.text && !plan.tucked.length && moreHoldsOnlyMerged(all));
             return;
         }
         // Classic layout: header icons next to Jellyfin's own header buttons.
@@ -1723,12 +1735,16 @@
     // Live TV took 46 s; Live TV's own extras are the guide grid and recordings.
     // In My Media, TV's tile is Jellyfin's Live TV tile renamed "TV" and opening Surf.
 
-    const SECT = { loaded: false, list: [] };
+    // views: the account's libraries in its own order, as { key, href } (see moreHoldsOnlyMerged)
+    const SECT = { loaded: false, list: [], views: [] };
 
     async function loadSections() {
         try {
             const views = await api(`Users/${ApiClient.getCurrentUserId()}/Views`);
             const items = (views && views.Items) || [];
+            SECT.views = items.map((v) => (v.CollectionType === 'livetv'
+                ? { key: 'livetv', href: '#/livetv?collectionType=livetv' }
+                : { key: v.Id, href: `#/${v.CollectionType === 'movies' ? 'movies' : v.CollectionType === 'tvshows' ? 'tv' : 'other'}?topParentId=${v.Id}` }));
             const named = (name, type) => {
                 const want = (name || '').trim().toLowerCase();
                 return want ? items.find((v) => (v.Name || '').trim().toLowerCase() === want && v.CollectionType === type) : null;
@@ -1768,6 +1784,21 @@
         return null;
     };
     const isMerged = (href) => { const hit = sectionTabFor(href); return !!hit && !hit.t.main && !hit.t.ours; };
+
+    // Whether Jellyfin's More (top bar) holds only pages a section took in. Its menu isn't in
+    // the page until it's opened, so work it out: Jellyfin lists the account's libraries in
+    // order and moves the ones that don't fit into More, so More holds every library after
+    // the last one still in the bar. Anything we can't match (a library type we don't map,
+    // no list yet) counts as not merged, which keeps More showing.
+    function moreHoldsOnlyMerged(barLinks) {
+        if (!SECT.views.length) return false;
+        const keyOf = (h) => (h.startsWith('#/livetv') ? 'livetv' : (h.match(/topParentId=([0-9a-f]+)/i) || [])[1]);
+        const inBar = new Set(barLinks.map((a) => keyOf(hrefOf(a))).filter(Boolean));
+        let last = -1;
+        SECT.views.forEach((v, i) => { if (inBar.has(v.key)) last = i; });
+        const rest = last >= 0 ? SECT.views.slice(last + 1) : [];
+        return rest.length > 0 && rest.every((v) => isMerged(v.href));
+    }
 
     function sectionTabsEl(sec, active) {
         const nav = document.createElement('nav');
