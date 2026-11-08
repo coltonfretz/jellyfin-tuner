@@ -1372,7 +1372,16 @@
         }
         return w;
     }
-    const hrefOf = (a) => a.getAttribute('href') || '';
+    // A link's in-app route ("#/movies?..."). Usually that's the whole href, but the desktop
+    // app connected by its https address writes full ones ("file:///C:/Program%20Files/
+    // Jellyfin/.../index.html#/movies?..."), and every check here compares from "#/".
+    // Seen 2026-11-07: nothing in the bar matched, so nothing was hidden and TV/Request
+    // fell back to icons. Other sites' links (Request) have no "#/" and stay as they are.
+    const hrefOf = (a) => {
+        const h = (a && a.getAttribute('href')) || '';
+        const i = h.indexOf('#/');
+        return i > 0 ? h.slice(i) : h;
+    };
     const jellyfinMore = (stack) => stack.querySelector(':scope > button[aria-controls="user-view-overflow-menu"]');
     function planTopNav(bar, stack, links, model) {
         const gap = parseFloat(getComputedStyle(stack).columnGap) || 0;
@@ -1999,7 +2008,7 @@
     document.addEventListener('click', (e) => {
         if (!MUSIC_ON || !music() || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
         const a = e.target.closest('a[href]');
-        const hit = (a && isJellyfinMusic(a.getAttribute('href')) && a)
+        const hit = (a && isJellyfinMusic(hrefOf(a)) && a)
             || e.target.closest('.card[data-collectiontype="music"]');
         if (!hit || hit.closest('.tnr-page')) return;
         e.preventDefault();
