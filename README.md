@@ -4,11 +4,12 @@ Radio and live TV pages for the Jellyfin web UI, plus a simpler Music page, tidi
 
 > Built with Claude for my own server and shared as is. Tested on Jellyfin 12.4 (web UI, Jellyfin Media Player, Android app). Issues and pull requests are welcome.
 
-![The Radio page: a tuning dial, genre buttons, the station list and the player](screenshots/radio.webp)
+![The Radio page: a tuning dial, genre buttons, the station list and the player with the song playing](screenshots/radio.webp)
 
 ## Contents
 
 - [What it adds](#what-it-adds)
+- [Screenshots](#screenshots)
 - [Install](#install)
 - [Settings](#settings)
 - [Station list format](#station-list-format)
@@ -41,6 +42,32 @@ Every part is off until you set it up.
 - The player's controls stay up while the mouse rests on them.
 
 **Works in** web-based apps: browsers, Jellyfin Media Player, and the official Android and iPhone apps. Native TV apps (Android TV, Roku, Apple TV) draw their own screens and won't show it.
+
+## Screenshots
+
+Taken on my own server, which also runs a custom theme ([Fretzflix Night](https://github.com/coltonfretz/fretzflix-theme)), so the colors and logo are mine. The plugin's pages pick up whatever theme you use.
+
+**Surf TV:** flip through channels with up and down, grouped by genre.
+
+![Surf TV: a channel playing, the channel list beside it and genre buttons below](screenshots/surf.webp)
+
+**TV section:** Surf, Guide and Classics as tabs under one TV link.
+
+![The TV section's Guide tab: programs on now and coming up](screenshots/guide.webp)
+
+![The TV section's Classics tab: a library of old cartoons and shorts](screenshots/classics.webp)
+
+**Music:** Search, Catalog, Now Playing and Radio tabs, with a Spotlight album up top.
+
+![The Music page's Catalog tab: a Spotlight album, playlists and albums by decade](screenshots/music.webp)
+
+**Jamendo:** Creative Commons music by genre, one track after another.
+
+![Jamendo on the Radio page: genre buttons and the player](screenshots/jamendo.webp)
+
+**Request:** a search that finds nothing offers a way to ask for it.
+
+![A search with no results and a "Can't find it? Request it" button](screenshots/request-search.webp)
 
 ## Install
 
