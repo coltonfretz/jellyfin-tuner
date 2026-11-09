@@ -133,6 +133,37 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public string RequestUrl { get; set; } = string.Empty;
 
+    /// <summary>
+    /// "Get apps" in everyone's settings menu (avatar -> the list with Profile, Display ...):
+    /// a page of the apps in <see cref="Apps"/>, the ones for the device you're on first.
+    /// WHY in the settings menu and not the top bar: you need it once per device, and the
+    /// top bar is already full (Fretzflix review 2026-11-09). Off by default.
+    /// </summary>
+    public bool GetApps { get; set; }
+
+    /// <summary>
+    /// The apps on the Get apps page, in the order shown. WHY an array and not a List:
+    /// XmlSerializer adds a saved List's items to the default ones instead of replacing them
+    /// (so the defaults would come back on every load); an array is replaced whole.
+    /// The defaults are only Jellyfin's own apps.
+    /// </summary>
+    public AppLink[] Apps { get; set; } = DefaultApps();
+
+    public static AppLink[] DefaultApps() => new[]
+    {
+        new AppLink
+        {
+            Name = "Jellyfin Desktop",
+            Note = "Jellyfin's app for computers.",
+            Devices = "windows,mac,linux",
+            Url = "https://github.com/jellyfin/jellyfin-desktop",
+            TestVersions = true,
+        },
+        new AppLink { Name = "Jellyfin", Note = "Jellyfin's phone app.", Devices = "android", Url = "https://play.google.com/store/apps/details?id=org.jellyfin.mobile" },
+        new AppLink { Name = "Jellyfin", Note = "Jellyfin's phone app.", Devices = "iphone", Url = "https://apps.apple.com/app/id1480192618" },
+        new AppLink { Name = "Jellyfin for Android TV", Note = "For Google TV and Android TV.", Devices = "tv", Url = "https://play.google.com/store/apps/details?id=org.jellyfin.androidtv" },
+    };
+
     /// <summary>Kill switch: stop injecting the client script without uninstalling.</summary>
     public bool DisableInjection { get; set; }
 }

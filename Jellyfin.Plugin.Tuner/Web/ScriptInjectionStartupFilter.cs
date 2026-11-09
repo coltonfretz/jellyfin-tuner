@@ -104,6 +104,13 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     sections += $" data-request-url=\"{System.Net.WebUtility.HtmlEncode(requestUri.AbsoluteUri)}\"";
                 }
 
+                // Get apps: a row in everyone's settings menu. Only the on/off rides here; the
+                // list itself comes from /Tuner/apps when the page opens.
+                if (config?.GetApps == true)
+                {
+                    sections += " data-get-apps=\"1\"";
+                }
+
                 // Relative URLs so a base-url prefix (e.g. /jellyfin/web/) still resolves.
                 var tags = $"<link rel=\"stylesheet\" href=\"../Tuner/client.css?v={v}\">"
                     + $"<script src=\"..{Marker}?v={v}\"{sections} defer></script>";

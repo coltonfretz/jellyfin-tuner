@@ -14,6 +14,14 @@
             .tnr-cfg-tabs button[aria-selected="true"] { opacity: 1; border-bottom-color: currentColor; }
             .tnr-cfg-tab > h2:first-child { margin-top: .4em; }
             .tnr-cfg-tab[hidden] { display: none !important; }
+            /* Apps tab: one box per app. */
+            .tnr-cfg-app { border: 1px solid rgba(128, 128, 128, .35); border-radius: 6px; padding: .8em 1em .4em; margin: 0 0 1em; }
+            .tnr-cfg-app .checkboxContainer { margin-bottom: .4em; }
+            .tnr-cfg-devices label { display: inline-block; margin: 0 1.2em .4em 0; }
+            .tnr-cfg-app-tools { text-align: right; margin: .2em 0 .4em; }
+            .tnr-cfg-app-tools button { background: none; border: 0; color: inherit; opacity: .7; cursor: pointer; font: inherit; padding: .3em .6em; }
+            .tnr-cfg-app-tools button:hover { opacity: 1; text-decoration: underline; }
+            .tnr-cfg-gh[hidden] { display: none !important; }
         </style>
         <div data-role="content">
             <div class="content-primary">
@@ -24,6 +32,7 @@
                         <button type="button" role="tab" data-tab="sources">Radio &amp; TV</button>
                         <button type="button" role="tab" data-tab="layout">Layout</button>
                         <button type="button" role="tab" data-tab="home">Home</button>
+                        <button type="button" role="tab" data-tab="apps">Apps</button>
                     </div>
 
                     <div class="tnr-cfg-tab" data-tab="sources" role="tabpanel">
@@ -100,6 +109,21 @@
                         <input is="emby-input" type="number" id="ShuffleLibraryTileDays" label="Days between new library tile pictures" min="0" max="365" />
                         <div class="fieldDescription">Each library's tile gets a new random backdrop this often. 0 turns it off; use 0 if you upload your own library pictures, or they'll be replaced.</div>
                     </div>
+                    </div>
+
+                    <div class="tnr-cfg-tab" data-tab="apps" role="tabpanel">
+                    <h2>Get apps</h2>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="GetApps" />
+                            <span>Add Get apps to everyone's settings menu</span>
+                        </label>
+                    </div>
+                    <div class="fieldDescription">A page of the apps below, under the avatar menu next to Profile and Display. Each person sees the apps for the device they're on first, and the rest under Other devices. Works in the browser, desktop and phone apps, not the TV apps.</div>
+                    <h2>Apps</h2>
+                    <div class="fieldDescription" style="margin-bottom:1em">Shown in this order. For a GitHub project (https://github.com/owner/repo), people get the newest release's file for their device, with its version. Tick "Always use this exact link" to hand out one specific download instead.</div>
+                    <div id="tnrApps"></div>
+                    <button is="emby-button" type="button" id="tnrAddApp" class="raised"><span>Add an app</span></button>
                     </div>
 
                     <div class="tnr-cfg-tab" data-tab="layout" role="tabpanel">
@@ -182,6 +206,69 @@
                 try { saved = localStorage.getItem('tnr-cfg-tab'); } catch (e) { /* private window */ }
                 showTab(page.querySelector('.tnr-cfg-tab[data-tab="' + saved + '"]') ? saved : 'sources');
 
+                // ---- Apps tab ----
+                var DEVICES = [['android', 'Android'], ['iphone', 'iPhone and iPad'], ['windows', 'Windows'], ['mac', 'Mac'], ['linux', 'Linux'], ['tv', 'TV']];
+                var appsBox = page.querySelector('#tnrApps');
+                function escAttr(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+                // The two GitHub options only mean something for a GitHub project address.
+                function isGitHub(url) { return /^https?:\/\/(www\.)?github\.com\/[^\/]+\/[^\/]+/i.test((url || '').trim()); }
+                function syncGitHub(box) {
+                    box.querySelector('.tnr-cfg-gh').hidden = !isGitHub(box.querySelector('.tnr-cfg-url').value);
+                }
+                function addAppBox(app) {
+                    app = app || {};
+                    var on = (app.Devices || '').toLowerCase().split(',').map(function (d) { return d.trim(); });
+                    var box = document.createElement('div');
+                    box.className = 'tnr-cfg-app';
+                    box.innerHTML =
+                        '<div class="inputContainer"><input is="emby-input" type="text" class="tnr-cfg-name" label="Name" value="' + escAttr(app.Name) + '" /></div>' +
+                        '<div class="inputContainer"><input is="emby-input" type="text" class="tnr-cfg-note" label="Note" value="' + escAttr(app.Note) + '" />' +
+                        '<div class="fieldDescription">One short line: what it\'s for, or a tip for installing it.</div></div>' +
+                        '<div class="inputContainer"><input is="emby-input" type="text" class="tnr-cfg-url" label="Link" value="' + escAttr(app.Url) + '" />' +
+                        '<div class="fieldDescription">A store page, a website, a download, or a GitHub project.</div></div>' +
+                        '<div class="tnr-cfg-devices">' + DEVICES.map(function (d) {
+                            return '<label><input is="emby-checkbox" type="checkbox" data-device="' + d[0] + '"' + (on.indexOf(d[0]) >= 0 ? ' checked' : '') + ' /><span>' + d[1] + '</span></label>';
+                        }).join('') + '</div>' +
+                        '<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" class="tnr-cfg-web"' + (app.WebApp ? ' checked' : '') + ' />' +
+                        '<span>Web app: on phones, show how to add it to the home screen</span></label></div>' +
+                        '<div class="tnr-cfg-gh">' +
+                        '<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" class="tnr-cfg-test"' + (app.TestVersions ? ' checked' : '') + ' />' +
+                        '<span>Count test versions (prereleases) as the newest</span></label></div>' +
+                        '<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" class="tnr-cfg-pin"' + (app.Pinned ? ' checked' : '') + ' />' +
+                        '<span>Always use this exact link (paste the file\'s download link above)</span></label></div>' +
+                        '</div>' +
+                        '<div class="tnr-cfg-app-tools"><button type="button" data-act="up">Move up</button><button type="button" data-act="down">Move down</button><button type="button" data-act="remove">Remove</button></div>';
+                    box.querySelector('.tnr-cfg-url').addEventListener('input', function () { syncGitHub(box); });
+                    box.querySelector('.tnr-cfg-app-tools').addEventListener('click', function (e) {
+                        var act = e.target && e.target.getAttribute('data-act');
+                        if (act === 'remove') box.remove();
+                        else if (act === 'up' && box.previousElementSibling) appsBox.insertBefore(box, box.previousElementSibling);
+                        else if (act === 'down' && box.nextElementSibling) appsBox.insertBefore(box.nextElementSibling, box);
+                    });
+                    appsBox.appendChild(box);
+                    syncGitHub(box);
+                    return box;
+                }
+                function readApps() {
+                    return Array.prototype.map.call(appsBox.querySelectorAll('.tnr-cfg-app'), function (box) {
+                        var devices = Array.prototype.filter.call(box.querySelectorAll('[data-device]'), function (c) { return c.checked; })
+                            .map(function (c) { return c.getAttribute('data-device'); });
+                        var url = box.querySelector('.tnr-cfg-url').value.trim();
+                        return {
+                            Name: box.querySelector('.tnr-cfg-name').value.trim(),
+                            Note: box.querySelector('.tnr-cfg-note').value.trim(),
+                            Url: url,
+                            Devices: devices.join(','),
+                            WebApp: box.querySelector('.tnr-cfg-web').checked,
+                            TestVersions: isGitHub(url) && box.querySelector('.tnr-cfg-test').checked,
+                            Pinned: isGitHub(url) && box.querySelector('.tnr-cfg-pin').checked
+                        };
+                    }).filter(function (a) { return a.Name && a.Url; });
+                }
+                page.querySelector('#tnrAddApp').addEventListener('click', function () {
+                    addAppBox({}).querySelector('.tnr-cfg-name').focus();
+                });
+
                 page.addEventListener('pageshow', function () {
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(pluginId).then(function (config) {
@@ -200,6 +287,9 @@
                         page.querySelector('#MusicPage').checked = !!config.MusicPage;
                         page.querySelector('#TvSection').checked = !!config.TvSection;
                         page.querySelector('#MoviesSection').checked = !!config.MoviesSection;
+                        page.querySelector('#GetApps').checked = !!config.GetApps;
+                        appsBox.innerHTML = '';
+                        (config.Apps || []).forEach(addAppBox);
                         page.querySelector('#MusicMinSongs').value = config.MusicMinSongs || 4;
                         page.querySelector('#ShuffleLibraryTileDays').value = config.ShuffleLibraryTileDays == null ? 3 : config.ShuffleLibraryTileDays;
                         Dashboard.hideLoadingMsg();
@@ -221,6 +311,8 @@
                         config.MusicPage = page.querySelector('#MusicPage').checked;
                         config.TvSection = page.querySelector('#TvSection').checked;
                         config.MoviesSection = page.querySelector('#MoviesSection').checked;
+                        config.GetApps = page.querySelector('#GetApps').checked;
+                        config.Apps = readApps();
                         config.MusicMinSongs = Math.min(50, Math.max(1, parseInt(page.querySelector('#MusicMinSongs').value, 10) || 4));
                         var days = parseInt(page.querySelector('#ShuffleLibraryTileDays').value, 10);
                         config.ShuffleLibraryTileDays = isNaN(days) ? 3 : Math.max(0, days);

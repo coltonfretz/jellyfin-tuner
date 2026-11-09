@@ -28,10 +28,11 @@ public class TunerController : ControllerBase
     private readonly HlsRelay _relay;
     private readonly AntennaService _antenna;
     private readonly SeasonService _seasons;
+    private readonly AppsService _apps;
     private readonly IHttpClientFactory _http;
     private readonly ILogger<TunerController> _logger;
 
-    public TunerController(RadioCatalog radio, IcyMetadata icy, JamendoService jamendo, StreamTickets tickets, TvService tv, HlsRelay relay, AntennaService antenna, SeasonService seasons, IHttpClientFactory http, ILogger<TunerController> logger)
+    public TunerController(RadioCatalog radio, IcyMetadata icy, JamendoService jamendo, StreamTickets tickets, TvService tv, HlsRelay relay, AntennaService antenna, SeasonService seasons, AppsService apps, IHttpClientFactory http, ILogger<TunerController> logger)
     {
         _radio = radio;
         _icy = icy;
@@ -41,6 +42,7 @@ public class TunerController : ControllerBase
         _relay = relay;
         _antenna = antenna;
         _seasons = seasons;
+        _apps = apps;
         _http = http;
         _logger = logger;
     }
@@ -310,6 +312,36 @@ public class TunerController : ControllerBase
         {
             tvClassics = c is { TvSection: true } ? (c.TvClassicsLibrary ?? string.Empty).Trim() : string.Empty,
             moviesClassics = c is { MoviesSection: true } ? (c.MoviesClassicsLibrary ?? string.Empty).Trim() : string.Empty,
+        });
+    }
+
+    /// <summary>
+    /// The Get apps page's list (profile menu -> Get apps): each app with its link and, for a
+    /// GitHub project, the newest file per device with its version. Off: {enabled: false}.
+    /// </summary>
+    [HttpGet("apps")]
+    [Authorize]
+    public async Task<ActionResult> Apps(CancellationToken ct)
+    {
+        var c = Plugin.Instance?.Configuration;
+        if (c is not { GetApps: true })
+        {
+            return Ok(new { enabled = false });
+        }
+
+        var apps = await _apps.ResolveAsync(c.Apps ?? Array.Empty<Configuration.AppLink>(), ct).ConfigureAwait(false);
+        return Ok(new
+        {
+            enabled = true,
+            apps = apps.Select(a => new
+            {
+                name = a.Name,
+                note = a.Note,
+                devices = a.Devices,
+                webApp = a.WebApp,
+                url = a.Url,
+                links = a.Links.ToDictionary(l => l.Key, l => new { url = l.Value.Url, version = l.Value.Version, test = l.Value.Test, file = l.Value.File }),
+            }),
         });
     }
 

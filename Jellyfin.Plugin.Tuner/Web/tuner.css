@@ -127,6 +127,28 @@ body[data-tnr-page="request"] .tnr-topnav[data-kind="request"], body[data-tnr-pa
 .tnr-req { display: block; width: 100%; height: calc(100vh - 9.5em); border: 0; border-radius: 10px; background: #111; }
 html.tnr-req-open, html.tnr-req-open body { overflow: hidden !important; }
 
+/* Get apps (settings menu -> Get apps). Cards for this device, a plain list under "Other
+   devices". Margins rather than flex gap, for Chromium 83 (the old desktop app, which is
+   exactly who this page is for). The big button borrows Jellyfin's own raised button. */
+.tnr-apps { max-width: 760px; margin: 0 auto; }
+.tnr-apps-head { margin: 0 0 .8em; font-weight: 500; }
+.tnr-app, .tnr-app-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.tnr-app { background: rgba(255, 255, 255, .06); border-radius: 10px; padding: 1em 1.2em; margin: 0 0 .8em; }
+.tnr-app-row { padding: .55em .2em; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.tnr-app-text { flex: 1 1 16em; min-width: 0; margin: .2em 1em .2em 0; }
+.tnr-app-name { font-size: 1.1em; font-weight: 500; }
+.tnr-app-row .tnr-app-name { font-size: 1em; }
+.tnr-app-line { color: var(--tnr-dim); font-size: .9em; margin-top: .25em; }
+.tnr-app-badge { display: inline-block; font-size: .7em; font-weight: 500; padding: .15em .6em; margin-left: .4em; border-radius: 1em;
+  background: rgba(255, 255, 255, .14); vertical-align: .15em; }
+.tnr-app-go { flex: 0 0 auto; margin: .3em 0; text-decoration: none; white-space: nowrap; }
+a.tnr-app-go.button-submit { display: inline-block; width: auto; padding: .7em 1.4em; margin: .3em 0; }
+.tnr-app-row .tnr-app-go { color: inherit; opacity: .8; text-decoration: underline; }
+.tnr-app-row .tnr-app-go:hover { opacity: 1; }
+.tnr-apps-more { margin-top: 1.6em; }
+.tnr-apps-more > summary { cursor: pointer; font-size: 1.1em; font-weight: 500; padding: .4em 0; }
+.tnr-apps-group { font-size: .95em; font-weight: 500; color: var(--tnr-dim); margin: 1.1em 0 .2em; }
+
 /* Jellyfin's backdrop art (an item page, or Jellyfin Enhanced's random-item dice) covers the
    whole window, and nothing clears it when our page takes over, so the last movie's art sat
    behind Radio. Hide it while ours is up; it's back as soon as the user leaves. */

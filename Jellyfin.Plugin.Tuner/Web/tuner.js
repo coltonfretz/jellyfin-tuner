@@ -35,6 +35,11 @@
     // http(s) addresses through.
     const REQUEST_URL = (ME && ME.dataset.requestUrl) || '';
     const REQUEST_ROUTE = '#/tuner/request';
+    // "Get apps" (setting): a row at the end of Jellyfin's settings menu (avatar -> Profile,
+    // Display ...) opening a page of apps, the ones for this device first. The list itself
+    // is fetched from /Tuner/apps when the page opens.
+    const GET_APPS_ON = !!(ME && ME.dataset.getApps);
+    const APPS_ROUTE = '#/tuner/apps';
     // Request opens INSIDE Fretzflix when it can (Fretzflix review 2026-11-05: the popup felt
     // like leaving the app). It can only when the request site shares a "site" with the
     // address Jellyfin is open on, e.g. requests.fretzflix.duckdns.org inside
@@ -1037,6 +1042,7 @@
         tv: { route: TV_ROUTE, id: TV_PAGE_ID, title: TV_ON ? 'TV' : 'Surf TV', loading: 'Loading channels…' },
         music: { route: MUSIC_ROUTE, id: 'tnr-music-page', title: 'Music', loading: 'Loading your music…' },
         request: { route: REQUEST_ROUTE, id: 'tnr-request-page', title: 'Request', loading: 'Opening requests…' },
+        apps: { route: APPS_ROUTE, id: 'tnr-apps-page', title: 'Get apps', loading: 'Loading apps…' },
     };
 
     function pageEl(kind) {
@@ -1103,9 +1109,10 @@
             if (kind === 'radio') { if (!S.loaded) await loadCatalog(); renderPage(); }
             else if (kind === 'music') await music().show(page, location.hash);
             else if (kind === 'request') renderRequestPage(page);
+            else if (kind === 'apps') await renderAppsPage(page);
             else { if (!T.loaded) await loadTv(); else refreshGuide(); renderTvPage(); if (T.enabled) refreshLive(); }
         } catch (e) {
-            const what = { radio: 'the station list', tv: 'the channel list', music: 'your music library', request: 'the request site' }[kind];
+            const what = { radio: 'the station list', tv: 'the channel list', music: 'your music library', request: 'the request site', apps: 'the list of apps' }[kind];
             // Radio inside Music keeps the Music tabs, so the way back is still there.
             const tabs = kind === 'radio' && music() ? music().tabsHtml('radio') : '';
             const msg = await troubleHtml(`Couldn\u2019t load ${what} right now. Try again in a few minutes, and if it keeps happening, let the server owner know.`,
@@ -1151,6 +1158,7 @@
         else if (MUSIC_ON && music() && location.hash.startsWith(MUSIC_ROUTE)) showPage('music');
         else if (location.hash.startsWith(TV_ROUTE)) showPage('tv');
         else if (REQUEST_EMBED && location.hash.startsWith(REQUEST_ROUTE)) showPage('request');
+        else if (GET_APPS_ON && location.hash.startsWith(APPS_ROUTE)) showPage('apps');
         else if (S.active) hidePage();
     }
 
@@ -1240,6 +1248,150 @@
         const to = url || REQUEST_URL;
         if (window.NativeShell && typeof window.NativeShell.openUrl === 'function') window.NativeShell.openUrl(to, '_blank');
         else window.open(to, '_blank', 'noopener');
+    }
+
+    // =====================================================================
+    // Get apps (settings menu -> Get apps)
+    // =====================================================================
+    //
+    // WHY (Fretzflix, 2026-11-09): friends kept asking which app to use where, and the
+    // desktop answer had just changed (Jellyfin Media Player 1.12.0 -> Jellyfin Desktop).
+    // One page per server: the admin lists the apps in the plugin settings, and each person
+    // sees the ones for the device they're on first, the rest under "Other devices" (the
+    // guess is sometimes wrong: an iPad says it's a Mac, Samsung DeX looks like Linux).
+
+    const DEVICE_HERE = {
+        android: 'your Android phone', iphone: 'your iPhone or iPad', windows: 'this Windows PC',
+        mac: 'this Mac', linux: 'this Linux PC', tv: 'this TV',
+    };
+    const DEVICE_GROUP = {
+        android: 'Android phones and tablets', iphone: 'iPhone and iPad', windows: 'Windows',
+        mac: 'Mac', linux: 'Linux', tv: 'TVs',
+    };
+
+    function thisDevice() {
+        const ua = navigator.userAgent || '';
+        if (/SmartTV|SMART-TV|Tizen|Web0S|WebOS|BRAVIA|CrKey|GoogleTV|Android TV|\bAFT[A-Z]/i.test(ua)) return 'tv';
+        if (/Android/i.test(ua)) return 'android';
+        // iPadOS asks for desktop sites and says "Macintosh"; only it has a touch screen.
+        if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iphone';
+        if (/Windows/i.test(ua)) return 'windows';
+        if (/Macintosh|Mac OS X/i.test(ua)) return 'mac';
+        if (/CrOS/.test(ua)) return '';
+        if (/Linux|X11/i.test(ua)) return 'linux';
+        return '';
+    }
+
+    // Jellyfin's own apps say who they are through NativeShell (the desktop and phone apps
+    // show these same web pages), so the page can say "You're using this", or for the old
+    // desktop app, that this one replaces it.
+    function hostAppName() {
+        try {
+            const h = window.NativeShell && window.NativeShell.AppHost;
+            const n = h && (typeof h.appName === 'function' ? h.appName() : h.appName);
+            return String(n || '');
+        } catch (e) { return ''; }
+    }
+    const KNOWN_APPS = [
+        { url: /github\.com\/jellyfin\/jellyfin-desktop/i, using: /jellyfin desktop/i, replaces: /media player/i },
+        { url: /org\.jellyfin\.mobile/i, using: /android/i },
+        { url: /apps\.apple\.com\/.*id1480192618/i, using: /ios|iphone|ipad/i },
+    ];
+    function hostBadge(app) {
+        const host = hostAppName();
+        if (!host) return '';
+        const k = KNOWN_APPS.find((x) => x.url.test(app.url));
+        if (!k) return '';
+        if (k.using.test(host)) return 'You’re using this';
+        if (k.replaces && k.replaces.test(host)) return 'Replaces the app you’re using';
+        return '';
+    }
+
+    // One app as a card (this device) or a row (Other devices).
+    function appEntry(app, device, big) {
+        const file = app.links && app.links[device];
+        const url = file ? file.url : app.url;
+        let action = 'Open';
+        if (/play\.google\.com/i.test(url)) action = 'Get it on Google Play';
+        else if (/apps\.apple\.com/i.test(url)) action = 'Get it on the App Store';
+        else if (/amazon\.[a-z.]+\//i.test(url)) action = 'Get it from Amazon';
+        else if (file && file.file) action = 'Download';
+        else if (/\/releases(\/|$)/i.test(url)) action = 'See downloads';
+        const lines = [];
+        if (app.note) lines.push(esc(app.note));
+        // Tags are usually "v2.1.0"; "Version v2.1.0" reads oddly.
+        if (file && file.version) lines.push(`Version ${esc(file.version.replace(/^v(?=\d)/i, ''))}${file.test ? ', a test version' : ''}`);
+        if (big && file && file.file && /\.zip$/i.test(file.file)) lines.push('It downloads as a zip: open it, then run the file inside.');
+        if (big && app.webApp && device === 'android') lines.push('Open it in Chrome, then tap the three dots -> Add to Home screen -> Install.');
+        if (big && app.webApp && device === 'iphone') lines.push('Open it in Safari, then tap Share -> Add to Home Screen -> Add.');
+        const badge = big ? hostBadge(app) : '';
+        return `<div class="${big ? 'tnr-app' : 'tnr-app-row'}">
+            <div class="tnr-app-text"><div class="tnr-app-name">${esc(app.name)}${badge ? ` <span class="tnr-app-badge">${esc(badge)}</span>` : ''}</div>
+            ${lines.map((l) => `<div class="tnr-app-line">${l}</div>`).join('')}</div>
+            <a class="tnr-app-go${big ? ' raised button-submit emby-button' : ''}" href="${esc(url)}" target="_blank" rel="noopener">${esc(action)}</a>
+        </div>`;
+    }
+
+    async function renderAppsPage(page) {
+        const wrap = $('.tnr-wrap', page);
+        const data = await api('Tuner/apps');
+        if (!data || !data.enabled) {
+            wrap.innerHTML = '<div class="tnr-empty">Get apps is turned off on this server.</div>';
+            return;
+        }
+        const here = thisDevice();
+        const apps = data.apps || [];
+        const mine = here ? apps.filter((a) => a.devices.indexOf(here) >= 0) : [];
+        const others = Object.keys(DEVICE_GROUP).filter((d) => d !== here).map((d) => ({ d, list: apps.filter((a) => a.devices.indexOf(d) >= 0) }))
+            .filter((g) => g.list.length);
+        let html = '<div class="tnr-apps">';
+        if (mine.length) {
+            html += `<h2 class="tnr-apps-head">For ${esc(DEVICE_HERE[here])}</h2>` + mine.map((a) => appEntry(a, here, true)).join('');
+        } else {
+            html += `<div class="tnr-empty">${here ? `Nothing here for ${esc(DEVICE_HERE[here])} yet.` : 'Pick your device below.'}</div>`;
+        }
+        if (others.length) {
+            // Open from the start when there was nothing for this device to show.
+            html += `<details class="tnr-apps-more"${mine.length ? '' : ' open'}><summary>Other devices</summary>`
+                + others.map((g) => `<h3 class="tnr-apps-group">${esc(DEVICE_GROUP[g.d])}</h3>` + g.list.map((a) => appEntry(a, g.d, false)).join('')).join('')
+                + '</details>';
+        }
+        html += '</div>';
+        wrap.innerHTML = html;
+        // The desktop app (old and new) can't open new windows, and the phone app opens them
+        // inside itself: NativeShell.openUrl hands the address to the system browser, where
+        // downloads and stores work. Plain browsers follow the link as usual.
+        wrap.querySelectorAll('a.tnr-app-go').forEach((a) => a.addEventListener('click', (e) => {
+            if (window.NativeShell && typeof window.NativeShell.openUrl === 'function') {
+                e.preventDefault();
+                window.NativeShell.openUrl(a.href, '_blank');
+            }
+        }));
+    }
+
+    // The row in Jellyfin's settings menu: a copy of its own Profile row (same look, spacing
+    // and focus), put at the end of the first list, after Subtitles and the app's own rows.
+    // React redraws that page now and then; the body observer puts the row back.
+    function injectAppsRow() {
+        if (!GET_APPS_ON) return;
+        const menu = document.querySelector('#myPreferencesMenuPage:not(.hide)');
+        if (!menu || menu.querySelector('.tnr-apps-row')) return;
+        const model = menu.querySelector('a.lnkUserProfile');
+        const section = model && model.closest('.verticalSection');
+        if (!section) return;
+        const row = model.cloneNode(true);
+        row.classList.remove('lnkUserProfile');
+        row.classList.add('tnr-apps-row');
+        row.setAttribute('href', APPS_ROUTE);
+        const icon = row.querySelector('.listItemIcon');
+        if (icon) { icon.classList.remove('person'); icon.classList.add('get_app'); icon.textContent = ''; }
+        const text = row.querySelector('.listItemBodyText');
+        if (text) text.textContent = 'Get apps';
+        // The copied row may be Jellyfin's emby-linkbutton, which would also send its router
+        // to #/tuner/apps (a "not found" page). Ours is added first, so it can stop that one.
+        row.addEventListener('click', (e) => { e.stopImmediatePropagation(); go('apps')(e); });
+        const rows = section.querySelectorAll('a.listItem-border, button.listItem-border');
+        (rows.length ? rows[rows.length - 1] : model).after(row);
     }
 
     // =====================================================================
@@ -2231,12 +2383,14 @@
         injectNav();
         injectTopBar();
         injectSeasonal();
+        // A reload on the settings menu draws it before this runs, with nothing left to change.
+        injectAppsRow();
         // The drawer and top bar are rebuilt on navigation, login and resize; put the links back.
         // Same for the home page's My Media row and a collection page's sections.
         let pending = false;
         new MutationObserver(() => {
             if (pending) return; pending = true;
-            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectSections(); injectSearchRequest(); });
+            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectSections(); injectSearchRequest(); injectAppsRow(); });
         }).observe(document.body, { childList: true, subtree: true });
         // The tab title lives in <head>, which the body observer doesn't see.
         new MutationObserver(keepOurTitle).observe(document.head, { childList: true, subtree: true, characterData: true });

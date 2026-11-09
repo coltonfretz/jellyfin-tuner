@@ -1,8 +1,8 @@
 # Jellyfin-Tuned (Jellyfin plugin)
 
-Radio and live TV pages for the Jellyfin web UI, plus a simpler Music page, tidier TV and Movies sections, a Request link and a few home page touches. Called Tuner before 1.0; the code and URLs still use that name.
+Radio and live TV pages for the Jellyfin web UI, plus a simpler Music page, tidier TV and Movies sections, a Request link, a Get apps page and a few home page touches. Called Tuner before 1.0; the code and URLs still use that name.
 
-> Built with Claude for my own server and shared as is. Tested on Jellyfin 12.4 (web UI, Jellyfin Media Player, Android app). Issues and pull requests are welcome.
+> Built with Claude for my own server and shared as is. Tested on Jellyfin 12.4 (web UI, Jellyfin Desktop, Jellyfin Media Player, Android app). Issues and pull requests are welcome.
 
 ![The Radio page: a tuning dial, genre buttons, the station list and the player with the song playing](screenshots/radio.webp)
 
@@ -34,6 +34,8 @@ Every part is off until you set it up.
 - **Movies:** **Library** and **Classics** tabs for a second movie library.
 - **Request:** a link to your Seerr or Jellyseerr site. Opens inside Jellyfin when both share a site (`requests.example.com` and `example.com`, https), otherwise in a new tab. Searches that find nothing offer **Can't find it? Request it**.
 
+- **Get apps:** a row in the settings menu (avatar -> Profile, Display ...) opening the apps you list, the ones for the device you're on first. GitHub projects get their newest release's file for that device.
+
 **Home and everywhere**
 
 - Recently Added rows rotate to the next posters every couple of minutes.
@@ -41,7 +43,7 @@ Every part is off until you set it up.
 - Library tiles get a new picture every few days.
 - The player's controls stay up while the mouse rests on them.
 
-**Works in** web-based apps: browsers, Jellyfin Media Player, and the official Android and iPhone apps. Native TV apps (Android TV, Roku, Apple TV) draw their own screens and won't show it.
+**Works in** web-based apps: browsers, Jellyfin Desktop (and the older Jellyfin Media Player), and the official Android and iPhone apps. Native TV apps (Android TV, Roku, Apple TV) draw their own screens and won't show it.
 
 ## Screenshots
 
@@ -85,7 +87,7 @@ Then set it up in Dashboard -> Plugins -> Jellyfin-Tuned and reload the web UI.
 
 ## Settings
 
-Three tabs. **Turn off the pages** (below them) hides everything without uninstalling.
+Four tabs. **Turn off the pages** (below them) hides everything without uninstalling.
 
 **Radio & TV**
 
@@ -133,6 +135,13 @@ https://ice1.somafm.com/metal-128-mp3
 
 [radio-browser.info](https://www.radio-browser.info) has a free API to build a list from.
 
+**Apps**
+
+| Setting | What it does |
+|---|---|
+| Get apps | On/off: the Get apps row in everyone's settings menu. |
+| Apps | Name, a one-line note, a link, and the devices it's for (Android, iPhone and iPad, Windows, Mac, Linux, TV). **Web app** adds the add-to-home-screen steps on phones. For a GitHub project: **Count test versions as the newest**, and **Always use this exact link** to hand out one specific download. Starts with Jellyfin's own apps. |
+
 ## Details
 
 **Music page**
@@ -154,6 +163,12 @@ https://ice1.somafm.com/metal-128-mp3
 - On a crowded phone bar its icons hide one at a time, Request last.
 - The side menu always has every entry in Libraries: TV after Music, Request at the end.
 
+**Get apps**
+
+- The device comes from the browser's user agent: Android, iPhone and iPad (an iPad that asks for desktop sites is spotted by its touch screen), Windows, Mac, Linux, TV. Every other device's apps sit under **Other devices**, since the guess is sometimes wrong.
+- A GitHub project's file is picked by name: the Windows installer over a portable zip, a Linux AppImage over a .deb, an Android .apk. The release list is fetched by the server, cached 6 hours (GitHub allows 60 lookups an hour without a key), and kept if GitHub is down. With no matching file, the link goes to the newest release's page.
+- Inside Jellyfin Desktop and the phone app, links go to the system browser (`NativeShell.openUrl`), where downloads and stores work. Those apps also get **You're using this**, and the old Jellyfin Media Player gets **Replaces the app you're using** on Jellyfin Desktop.
+
 **For other clients:** `GET /Tuner/sections` (signed in) returns the Classics library names, so a TV app can match them.
 
 ## How it works
@@ -162,9 +177,11 @@ https://ice1.somafm.com/metal-128-mp3
 jellyfin-web --(script added to index.html)--> tuner.js + tuner.css
      |  signed-in session
      v
-/Tuner/radio, /Tuner/tv, /Tuner/jamendo/*, /Tuner/sections   [sign-in]
+/Tuner/radio, /Tuner/tv, /Tuner/jamendo/*, /Tuner/sections,
+/Tuner/apps                                                   [sign-in]
 /Tuner/radio/{n}/stream, .../logo?t=<ticket>                  [ticket]
-     +--> station list and streams (relayed), Dispatcharr, HDHomeRun, Jamendo
+     +--> station list and streams (relayed), Dispatcharr, HDHomeRun, Jamendo,
+          GitHub releases (Get apps)
 ```
 
 - **Script injected as the page is served,** not edited on disk (read-only in Docker, wiped by updates). On any error the original page is served.
