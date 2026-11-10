@@ -14,6 +14,9 @@ namespace Jellyfin.Plugin.Tuner.Services;
 /// </summary>
 public sealed class LogoCache
 {
+    // Station logos are a few KB to a few hundred; anything far bigger isn't a logo.
+    private const int MaxLogoBytes = 2 * 1024 * 1024;
+
     private readonly IHttpClientFactory _http;
     private readonly ConcurrentDictionary<string, (byte[] Bytes, string Type)> _cache = new();
 
@@ -37,17 +40,45 @@ public sealed class LogoCache
 
         try
         {
-            using var resp = await _http.CreateClient(PluginServiceRegistrator.ApiClient).GetAsync(url, ct).ConfigureAwait(false);
-            if (!resp.IsSuccessStatusCode)
+            using var resp = await _http.CreateClient(PluginServiceRegistrator.ApiClient)
+                .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            // Only pictures: anything else (a web page, say) is no logo, never relayed.
+            // Storage servers often label files "octet-stream"; those are let through to be
+            // recognized by their first bytes below.
+            var declared = resp.Content.Headers.ContentType?.MediaType;
+            var type = NetGuard.ImageType(declared);
+            var unlabeled = type is null && (string.IsNullOrEmpty(declared) || declared.EndsWith("octet-stream", StringComparison.OrdinalIgnoreCase));
+            if (!resp.IsSuccessStatusCode || (type is null && !unlabeled) || resp.Content.Headers.ContentLength > MaxLogoBytes)
             {
                 return null;
             }
 
-            var entry = (await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false), resp.Content.Headers.ContentType?.MediaType ?? "image/png");
+            await using var src = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            using var buffer = new MemoryStream();
+            var chunk = new byte[16 * 1024];
+            int n;
+            while ((n = await src.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0)
+            {
+                if (buffer.Length + n > MaxLogoBytes)
+                {
+                    return null;
+                }
+
+                buffer.Write(chunk, 0, n);
+            }
+
+            var bytes = buffer.ToArray();
+            type ??= NetGuard.SniffImage(bytes);
+            if (type is null)
+            {
+                return null;
+            }
+
+            var entry = (bytes, type);
             _cache[url] = entry;
             return entry;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
             return null;
         }

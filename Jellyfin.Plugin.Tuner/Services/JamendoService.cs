@@ -59,6 +59,16 @@ public partial class JamendoService
     private readonly ConcurrentDictionary<string, (DateTime At, List<JamendoTrack> Tracks)> _pools = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _poolLocks = new();
 
+    // Keep limits (security review 2026-11-09). Keep stays open to every signed-in friend
+    // (the admin's call, 2026-10-25), but a stolen or scripted friend account could otherwise
+    // save Jamendo's whole catalog into the music share. A person keeps a few songs a day;
+    // these only stop a loop.
+    private const int KeepsPerUserPerDay = 25;
+    private const long MaxKeepBytes = 50L * 1024 * 1024;          // a Jamendo MP3 is 3-15 MB
+    private const long MinFreeBytes = 5L * 1024 * 1024 * 1024;    // leave the share room for everything else
+    private readonly Dictionary<string, (DateOnly Day, int Count)> _keepsToday = new();
+    private readonly object _keepsLock = new();
+
     public JamendoService(IHttpClientFactory http, ILibraryMonitor libraryMonitor, ILogger<JamendoService> logger)
     {
         _http = http;
@@ -213,11 +223,16 @@ public partial class JamendoService
     /// audiodownload_allowed flag is the artist's own choice, and honoring it is what
     /// keeps "Keep" on the right side of their Creative Commons terms.
     /// </summary>
-    public async Task<(bool Ok, string Message)> KeepAsync(string trackId, CancellationToken ct)
+    public async Task<(bool Ok, string Message)> KeepAsync(string trackId, string user, CancellationToken ct)
     {
         if (!Enabled || !DigitsRegex().IsMatch(trackId))
         {
             return (false, "Unknown track");
+        }
+
+        if (KeptToday(user) >= KeepsPerUserPerDay)
+        {
+            return (false, $"That's {KeepsPerUserPerDay} kept today, the most for one day. Try again tomorrow.");
         }
 
         var folder = Plugin.Instance?.Configuration.JamendoKeepFolder;
@@ -262,6 +277,12 @@ public partial class JamendoService
             return (true, "Already in your library");
         }
 
+        if (FreeBytes(root) is long free && free < MinFreeBytes)
+        {
+            _logger.LogWarning("Tuner: Keep refused, the keep folder has only {Free} MB free", free / (1024 * 1024));
+            return (false, "The music library is almost full, so nothing more can be kept right now");
+        }
+
         Directory.CreateDirectory(dir);
         // Write to .part first and rename, so the library scanner never picks up a
         // half-downloaded file; a failed download takes its .part with it.
@@ -270,13 +291,31 @@ public partial class JamendoService
         {
             using var resp = await _http.CreateClient(PluginServiceRegistrator.StreamClient).GetAsync(download, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             resp.EnsureSuccessStatusCode();
+            if (resp.Content.Headers.ContentLength > MaxKeepBytes)
+            {
+                return (false, "That file is too big to keep");
+            }
+
             await using (var src = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false))
             await using (var dst = File.Create(part))
             {
-                await src.CopyToAsync(dst, ct).ConfigureAwait(false);
+                var chunk = new byte[64 * 1024];
+                long total = 0;
+                int n;
+                while ((n = await src.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0)
+                {
+                    total += n;
+                    if (total > MaxKeepBytes)
+                    {
+                        throw new IOException($"Jamendo track {trackId} is over {MaxKeepBytes / (1024 * 1024)} MB");
+                    }
+
+                    await dst.WriteAsync(chunk.AsMemory(0, n), ct).ConfigureAwait(false);
+                }
             }
 
             File.Move(part, file);
+            CountKeep(user);
         }
         catch
         {
@@ -286,6 +325,37 @@ public partial class JamendoService
 
         _libraryMonitor.ReportFileSystemChanged(file);
         return (true, "Saved to your library");
+    }
+
+    private int KeptToday(string user)
+    {
+        lock (_keepsLock)
+        {
+            return _keepsToday.TryGetValue(user, out var k) && k.Day == DateOnly.FromDateTime(DateTime.UtcNow) ? k.Count : 0;
+        }
+    }
+
+    private void CountKeep(string user)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        lock (_keepsLock)
+        {
+            var count = _keepsToday.TryGetValue(user, out var k) && k.Day == today ? k.Count : 0;
+            _keepsToday[user] = (today, count + 1);
+        }
+    }
+
+    /// <summary>Free space where the keep folder lives (the NAS share), or null if it can't be read.</summary>
+    private static long? FreeBytes(string path)
+    {
+        try
+        {
+            return new DriveInfo(path).AvailableFreeSpace;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
     }
 
     private static string Str(JsonElement e, string name)

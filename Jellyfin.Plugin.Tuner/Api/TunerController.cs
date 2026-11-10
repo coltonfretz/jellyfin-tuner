@@ -424,8 +424,9 @@ public class TunerController : ControllerBase
                 return;
             }
 
-            Response.ContentType = resp.Content.Headers.ContentType?.ToString() ?? "audio/mpeg";
+            Response.ContentType = NetGuard.AudioType(resp.Content.Headers.ContentType?.ToString());
             Response.Headers.CacheControl = "no-store";
+            NetGuard.LockDown(Response);
             await using var src = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
             await src.CopyToAsync(Response.Body, 16 * 1024, ct).ConfigureAwait(false);
         }
@@ -465,7 +466,9 @@ public class TunerController : ControllerBase
     {
         try
         {
-            var (ok, message) = await _jamendo.KeepAsync(trackId, ct).ConfigureAwait(false);
+            // Jellyfin puts the signed-in user's id in this claim; the daily Keep limit counts per person.
+            var user = User.FindFirst("Jellyfin-UserId")?.Value ?? User.Identity?.Name ?? "unknown";
+            var (ok, message) = await _jamendo.KeepAsync(trackId, user, ct).ConfigureAwait(false);
             return ok ? Ok(new { message }) : BadRequest(new { message });
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException)
@@ -484,6 +487,7 @@ public class TunerController : ControllerBase
         }
 
         Response.Headers.CacheControl = "private, max-age=86400";
+        NetGuard.LockDown(Response);
         return File(logo.Value.Bytes, logo.Value.Type);
     }
 

@@ -20,6 +20,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
 
         // WHY two clients: radio relays are open-ended streams, so they must not have a
         // timeout and must not buffer. Catalog/API calls should fail fast instead.
+        // The stream client fetches from addresses other people control (stations, CDNs,
+        // playlists, redirects), so it may only connect to the public internet
+        // (NetGuard). The API client keeps LAN access: Dispatcharr, the HDHomeRun and the
+        // station list are home services the admin set.
         serviceCollection.AddHttpClient(StreamClient, c =>
         {
             c.Timeout = Timeout.InfiniteTimeSpan;
@@ -28,7 +32,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         {
             AutomaticDecompression = DecompressionMethods.None,
             AllowAutoRedirect = true,
+            MaxAutomaticRedirections = 5,
             ConnectTimeout = TimeSpan.FromSeconds(8),
+            ConnectCallback = NetGuard.ConnectPublicOnlyAsync,
         });
         serviceCollection.AddHttpClient(ApiClient, c =>
         {

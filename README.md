@@ -188,6 +188,8 @@ jellyfin-web --(script added to index.html)--> tuner.js + tuner.css
 - **Radio is relayed by the server** so https pages can play http streams and read song titles. Only your own stations, so it's not an open proxy.
 - **Tickets, not tokens, in URLs:** audio and image tags can't send headers. 12-hour tickets, signed with a key that changes each restart.
 - **Free channels play straight from their source** (faster than Live TV), relayed only when a source refuses web pages.
+- **Relays only reach the public internet, and only pass on media.** Station and channel streams can't be pointed (by a playlist or a redirect) at a home or cluster address. Whatever an upstream claims, a relayed stream goes out as audio or video and a logo as a picture, marked so browsers never treat it as a page. Playlists are capped at 1 MB and 15 seconds.
+- **Keep has limits:** 25 tracks per person per day, 50 MB per file, and none while the library's disk has under 5 GB free.
 - **Antenna channels are converted on the server** (MPEG-TS) and shared by everyone on the same channel. About one CPU core each; stops after the last viewer.
 - **Music plays through the browser's own session** ("play these", like casting from a phone), since jellyfin-web doesn't expose its player.
 

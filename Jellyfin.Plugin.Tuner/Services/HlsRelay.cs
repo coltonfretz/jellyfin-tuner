@@ -15,6 +15,11 @@ namespace Jellyfin.Plugin.Tuner.Services;
 /// </summary>
 public partial class HlsRelay
 {
+    // A real playlist is a few KB; these stop an upstream that sends an endless or
+    // never-finishing "playlist" from tying up Jellyfin's memory or a request forever.
+    private const int MaxPlaylistBytes = 1024 * 1024;
+    private static readonly TimeSpan PlaylistTimeout = TimeSpan.FromSeconds(15);
+
     private readonly IHttpClientFactory _http;
     private readonly StreamTickets _tickets;
 
@@ -64,9 +69,10 @@ public partial class HlsRelay
             || finalUrl.AbsolutePath.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase);
 
         ctx.Response.Headers.CacheControl = "no-store";
+        NetGuard.LockDown(ctx.Response);
         if (!looksLikePlaylist)
         {
-            ctx.Response.ContentType = string.IsNullOrEmpty(type) ? "video/mp2t" : type;
+            ctx.Response.ContentType = NetGuard.SegmentType(type);
             if (resp.Content.Headers.ContentLength is long len)
             {
                 ctx.Response.ContentLength = len;
@@ -77,7 +83,13 @@ public partial class HlsRelay
             return;
         }
 
-        var text = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        var text = await ReadPlaylistAsync(resp, ct).ConfigureAwait(false);
+        if (text is null)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status502BadGateway;
+            return;
+        }
+
         var rewritten = Rewrite(text, finalUrl, ticket);
         ctx.Response.ContentType = "application/vnd.apple.mpegurl";
         var bytes = Encoding.UTF8.GetBytes(rewritten);
@@ -108,6 +120,40 @@ public partial class HlsRelay
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>The playlist's text, or null if it's bigger than MaxPlaylistBytes or slower than PlaylistTimeout.</summary>
+    private static async Task<string?> ReadPlaylistAsync(HttpResponseMessage resp, CancellationToken ct)
+    {
+        if (resp.Content.Headers.ContentLength > MaxPlaylistBytes)
+        {
+            return null;
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(PlaylistTimeout);
+        try
+        {
+            await using var src = await resp.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
+            using var buffer = new MemoryStream();
+            var chunk = new byte[16 * 1024];
+            int n;
+            while ((n = await src.ReadAsync(chunk, timeout.Token).ConfigureAwait(false)) > 0)
+            {
+                if (buffer.Length + n > MaxPlaylistBytes)
+                {
+                    return null;
+                }
+
+                buffer.Write(chunk, 0, n);
+            }
+
+            return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return null;  // our timeout, not the viewer leaving
+        }
     }
 
     private static string Absolute(Uri baseUri, string reference) => new Uri(baseUri, reference).AbsoluteUri;
