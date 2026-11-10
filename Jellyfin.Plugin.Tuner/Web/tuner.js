@@ -1268,6 +1268,9 @@
         android: 'Android phones and tablets', iphone: 'iPhone and iPad', windows: 'Windows',
         mac: 'Mac', linux: 'Linux', tv: 'TVs',
     };
+    // Button labels when one app has a different download per device.
+    const DEVICE_SHORT = { android: 'Android', iphone: 'iPhone', windows: 'Windows', mac: 'Mac', linux: 'Linux', tv: 'TV' };
+    const andList = (xs) => (xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]);
 
     function thisDevice() {
         const ua = navigator.userAgent || '';
@@ -1307,20 +1310,29 @@
         return '';
     }
 
-    // One app as a card (this device) or a row (Other devices).
-    function appEntry(app, device, big) {
+    // Where an app's button goes on one device (a GitHub project has a file per device).
+    function target(app, device) {
         const file = app.links && app.links[device];
-        const url = file ? file.url : app.url;
-        let action = 'Open';
-        if (/play\.google\.com/i.test(url)) action = 'Get it on Google Play';
-        else if (/apps\.apple\.com/i.test(url)) action = 'Get it on the App Store';
-        else if (/amazon\.[a-z.]+\//i.test(url)) action = 'Get it from Amazon';
-        else if (file && file.file) action = 'Download';
-        else if (/\/releases(\/|$)/i.test(url)) action = 'See downloads';
+        return { url: file ? file.url : app.url, file };
+    }
+    function actionFor(url, file) {
+        if (/play\.google\.com/i.test(url)) return 'Get it on Google Play';
+        if (/apps\.apple\.com/i.test(url)) return 'Get it on the App Store';
+        if (/amazon\.[a-z.]+\//i.test(url)) return 'Get it from Amazon';
+        if (file && file.file) return 'Download';
+        if (/\/releases(\/|$)/i.test(url)) return 'See downloads';
+        return 'Open';
+    }
+    const versionLine = (file) => `Version ${esc(file.version.replace(/^v(?=\d)/i, ''))}${file.test ? ', a test version' : ''}`;
+
+    // One app as a card, for the device this page is on.
+    function appEntry(app, device, big) {
+        const { url, file } = target(app, device);
+        const action = actionFor(url, file);
         const lines = [];
         if (app.note) lines.push(esc(app.note));
         // Tags are usually "v2.1.0"; "Version v2.1.0" reads oddly.
-        if (file && file.version) lines.push(`Version ${esc(file.version.replace(/^v(?=\d)/i, ''))}${file.test ? ', a test version' : ''}`);
+        if (file && file.version) lines.push(versionLine(file));
         if (big && file && file.file && /\.zip$/i.test(file.file)) lines.push('It downloads as a zip: open it, then run the file inside.');
         if (big && app.webApp && device === 'android') lines.push('Open it in Chrome, then tap the three dots -> Add to Home screen -> Install.');
         if (big && app.webApp && device === 'iphone') lines.push('Open it in Safari, then tap Share -> Add to Home Screen -> Add.');
@@ -1329,6 +1341,36 @@
             <div class="tnr-app-text"><div class="tnr-app-name">${esc(app.name)}${badge ? ` <span class="tnr-app-badge">${esc(badge)}</span>` : ''}</div>
             ${lines.map((l) => `<div class="tnr-app-line">${l}</div>`).join('')}</div>
             <a class="tnr-app-go${big ? ' raised button-submit emby-button' : ''}" href="${esc(url)}" target="_blank" rel="noopener">${esc(action)}</a>
+        </div>`;
+    }
+
+    // One app as a row under Other devices: which devices it's for, and one button, or one
+    // per device when their downloads differ (Jellyfin Desktop's Windows and Linux files,
+    // Jellify's two store pages). parts: the app's entries ({app, devices}) with this name.
+    function otherRow(name, parts) {
+        const byUrl = new Map();
+        const devices = [];
+        parts.forEach(({ app, devices: ds }) => ds.forEach((d) => {
+            const t = target(app, d);
+            if (!byUrl.has(t.url)) byUrl.set(t.url, { url: t.url, file: t.file, devices: [] });
+            byUrl.get(t.url).devices.push(d);
+            if (devices.indexOf(d) < 0) devices.push(d);
+        }));
+        const targets = [...byUrl.values()];
+        const lines = [...new Set(parts.map((p) => p.app.note).filter(Boolean))].map(esc);
+        // One device: its full name ("iPhone and iPad"); several: the short ones, so the
+        // line doesn't read "Android phones and tablets and iPhone and iPad".
+        lines.push('For ' + esc(devices.length === 1 ? DEVICE_GROUP[devices[0]] : andList(devices.map((d) => DEVICE_SHORT[d]))));
+        const versions = [...new Set(targets.filter((t) => t.file && t.file.version).map((t) => versionLine(t.file)))];
+        if (versions.length === 1) lines.push(versions[0]);
+        const buttons = targets.map((t) => {
+            const label = targets.length === 1 ? actionFor(t.url, t.file) : andList(t.devices.map((d) => DEVICE_SHORT[d]));
+            return `<a class="tnr-app-go" href="${esc(t.url)}" target="_blank" rel="noopener">${esc(label)}</a>`;
+        });
+        return `<div class="tnr-app-row">
+            <div class="tnr-app-text"><div class="tnr-app-name">${esc(name)}</div>
+            ${lines.map((l) => `<div class="tnr-app-line">${l}</div>`).join('')}</div>
+            <div class="tnr-app-gos">${buttons.join('')}</div>
         </div>`;
     }
 
@@ -1342,8 +1384,18 @@
         const here = thisDevice();
         const apps = data.apps || [];
         const mine = here ? apps.filter((a) => a.devices.indexOf(here) >= 0) : [];
-        const others = Object.keys(DEVICE_GROUP).filter((d) => d !== here).map((d) => ({ d, list: apps.filter((a) => a.devices.indexOf(d) >= 0) }))
-            .filter((g) => g.list.length);
+        // Other devices: each app once, in the admin's order (2026-11-10: grouping by device
+        // listed an Android + iPhone app like Fretzpod twice). Entries with the same name
+        // (Jellify's Android and iPhone store pages are two entries) share one row. An app
+        // already shown above is left out unless another device gets a different download.
+        const others = [];
+        apps.forEach((a) => {
+            const devices = a.devices.filter((d) => d !== here && DEVICE_GROUP[d]);
+            if (!devices.length || (mine.indexOf(a) >= 0 && devices.every((d) => target(a, d).url === target(a, here).url))) return;
+            const row = others.find((o) => o.name.toLowerCase() === a.name.toLowerCase());
+            if (row) row.parts.push({ app: a, devices });
+            else others.push({ name: a.name, parts: [{ app: a, devices }] });
+        });
         let html = '<div class="tnr-apps">';
         if (mine.length) {
             html += `<h2 class="tnr-apps-head">For ${esc(DEVICE_HERE[here])}</h2>` + mine.map((a) => appEntry(a, here, true)).join('');
@@ -1353,7 +1405,7 @@
         if (others.length) {
             // Open from the start when there was nothing for this device to show.
             html += `<details class="tnr-apps-more"${mine.length ? '' : ' open'}><summary>Other devices</summary>`
-                + others.map((g) => `<h3 class="tnr-apps-group">${esc(DEVICE_GROUP[g.d])}</h3>` + g.list.map((a) => appEntry(a, g.d, false)).join('')).join('')
+                + others.map((o) => otherRow(o.name, o.parts)).join('')
                 + '</details>';
         }
         html += '</div>';
