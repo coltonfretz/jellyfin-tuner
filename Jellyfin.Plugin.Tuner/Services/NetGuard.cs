@@ -95,10 +95,13 @@ public static class NetGuard
         "application/octet-stream", "binary/octet-stream",
     };
 
+    // No SVG: it's XML text, so a logo from a station's site would be read by the
+    // browser's XML engine (the part hit by Chrome's November 2026 zero-day) and could
+    // hold script. A station with only an SVG logo shows no logo.
     private static readonly string[] ImageTypes =
     {
         "image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp",
-        "image/x-icon", "image/vnd.microsoft.icon", "image/svg+xml",
+        "image/x-icon", "image/vnd.microsoft.icon",
     };
 
     /// <summary>A radio stream's type: any audio type (or Ogg) as sent, anything else becomes audio/mpeg.</summary>
@@ -151,7 +154,7 @@ public static class NetGuard
     /// <summary>
     /// Headers for every relayed response: the browser must take the type as given
     /// (nosniff), and if someone opens the address directly, nothing in it may run
-    /// (sandbox; SVG logos are the case that matters). Players and img tags ignore both.
+    /// (sandbox). Players and img tags ignore both.
     /// </summary>
     public static void LockDown(HttpResponse response)
     {
