@@ -164,6 +164,12 @@ public class PluginConfiguration : BasePluginConfiguration
         new AppLink { Name = "Jellyfin for Android TV", Note = "For Google TV and Android TV.", Devices = "tv", Url = "https://play.google.com/store/apps/details?id=org.jellyfin.androidtv" },
     };
 
+    /// <summary>
+    /// Watch together: a chat beside the video for people in the same SyncPlay group, which
+    /// follows them around Jellyfin as a bubble in the corner. Off by default.
+    /// </summary>
+    public bool SyncPlayChat { get; set; }
+
     /// <summary>Kill switch: stop injecting the client script without uninstalling.</summary>
     public bool DisableInjection { get; set; }
 }

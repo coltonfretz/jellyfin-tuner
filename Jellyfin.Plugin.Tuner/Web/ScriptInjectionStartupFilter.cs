@@ -130,6 +130,11 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     tags += $"<script src=\"../Tuner/music.js?v={v}\" data-min-songs=\"{min}\" defer></script>";
                 }
 
+                if (config?.SyncPlayChat == true)
+                {
+                    tags += $"<script src=\"../Tuner/party.js?v={v}\" defer></script>";
+                }
+
                 html = html.Substring(0, bodyClose) + tags + html.Substring(bodyClose);
             }
         }

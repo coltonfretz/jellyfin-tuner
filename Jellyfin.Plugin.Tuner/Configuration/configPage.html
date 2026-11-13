@@ -33,6 +33,7 @@
                         <button type="button" role="tab" data-tab="layout">Layout</button>
                         <button type="button" role="tab" data-tab="home">Home</button>
                         <button type="button" role="tab" data-tab="apps">Apps</button>
+                        <button type="button" role="tab" data-tab="together">Watch together</button>
                     </div>
 
                     <div class="tnr-cfg-tab" data-tab="sources" role="tabpanel">
@@ -124,6 +125,17 @@
                     <div class="fieldDescription" style="margin-bottom:1em">Shown in this order. For a GitHub project (https://github.com/owner/repo), people get the newest release's file for their device, with its version. Tick "Always use this exact link" to hand out one specific download instead.</div>
                     <div id="tnrApps"></div>
                     <button is="emby-button" type="button" id="tnrAddApp" class="raised"><span>Add an app</span></button>
+                    </div>
+
+                    <div class="tnr-cfg-tab" data-tab="together" role="tabpanel">
+                    <h2>Watch together</h2>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="SyncPlayChat" />
+                            <span>Chat for SyncPlay groups</span>
+                        </label>
+                    </div>
+                    <div class="fieldDescription">People in the same SyncPlay group get a chat beside the video. Full screen hides it; elsewhere in Jellyfin it shrinks to a bubble in the bottom right. Messages stay in the server's memory only and are gone when the group ends. Each person needs SyncPlay allowed in their user settings (Dashboard, Users, the person, SyncPlay access). Works in the browser, desktop and phone apps, not the TV apps.</div>
                     </div>
 
                     <div class="tnr-cfg-tab" data-tab="layout" role="tabpanel">
@@ -288,6 +300,7 @@
                         page.querySelector('#TvSection').checked = !!config.TvSection;
                         page.querySelector('#MoviesSection').checked = !!config.MoviesSection;
                         page.querySelector('#GetApps').checked = !!config.GetApps;
+                        page.querySelector('#SyncPlayChat').checked = !!config.SyncPlayChat;
                         appsBox.innerHTML = '';
                         (config.Apps || []).forEach(addAppBox);
                         page.querySelector('#MusicMinSongs').value = config.MusicMinSongs || 4;
@@ -312,6 +325,7 @@
                         config.TvSection = page.querySelector('#TvSection').checked;
                         config.MoviesSection = page.querySelector('#MoviesSection').checked;
                         config.GetApps = page.querySelector('#GetApps').checked;
+                        config.SyncPlayChat = page.querySelector('#SyncPlayChat').checked;
                         config.Apps = readApps();
                         config.MusicMinSongs = Math.min(50, Math.max(1, parseInt(page.querySelector('#MusicMinSongs').value, 10) || 4));
                         var days = parseInt(page.querySelector('#ShuffleLibraryTileDays').value, 10);

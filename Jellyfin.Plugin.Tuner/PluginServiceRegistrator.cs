@@ -51,5 +51,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<AntennaService>();
         serviceCollection.AddSingleton<SeasonService>();
         serviceCollection.AddSingleton<AppsService>();
+        serviceCollection.AddSingleton<PartyChat>();
     }
 }

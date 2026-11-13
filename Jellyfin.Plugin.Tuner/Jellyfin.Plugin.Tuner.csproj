@@ -5,8 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.Tuner</RootNamespace>
     <AssemblyName>Jellyfin.Plugin.Tuner</AssemblyName>
-    <AssemblyVersion>1.0.5.2</AssemblyVersion>
-    <FileVersion>1.0.5.2</FileVersion>
+    <AssemblyVersion>1.0.6.0</AssemblyVersion>
+    <FileVersion>1.0.6.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
@@ -27,6 +27,7 @@
     <EmbeddedResource Include="Web\tuner.css" LogicalName="Tuner.Web.tuner.css" />
     <EmbeddedResource Include="Web\homerows.js" LogicalName="Tuner.Web.homerows.js" />
     <EmbeddedResource Include="Web\music.js" LogicalName="Tuner.Web.music.js" />
+    <EmbeddedResource Include="Web\party.js" LogicalName="Tuner.Web.party.js" />
     <EmbeddedResource Include="Web\hls.min.js" LogicalName="Tuner.Web.hls.min.js" />
     <EmbeddedResource Include="Configuration\configPage.html" LogicalName="Tuner.Configuration.configPage.html" />
   </ItemGroup>

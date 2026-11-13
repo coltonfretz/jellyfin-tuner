@@ -36,6 +36,10 @@ Every part is off until you set it up.
 
 - **Get apps:** a row in the settings menu (avatar -> Profile, Display ...) opening the apps you list, the ones for the device you're on first. GitHub projects get their newest release's file for that device.
 
+**Watch together**
+
+- **SyncPlay chat:** people in the same SyncPlay group get a chat in a column beside the video (the player shrinks to make room). Full screen turns it into a bubble; elsewhere in Jellyfin it floats in the bottom right with an unread count. Its group button opens SyncPlay's menu to get back to the video.
+
 **Home and everywhere**
 
 - Recently Added rows rotate to the next posters every couple of minutes.
@@ -142,6 +146,12 @@ https://ice1.somafm.com/metal-128-mp3
 | Get apps | On/off: the Get apps row in everyone's settings menu. |
 | Apps | Name, a one-line note, a link, and the devices it's for (Android, iPhone and iPad, Windows, Mac, Linux, TV). **Web app** adds the add-to-home-screen steps on phones. For a GitHub project: **Count test versions as the newest**, and **Always use this exact link** to hand out one specific download. Starts with Jellyfin's own apps. |
 
+**Watch together**
+
+| Setting | What it does |
+|---|---|
+| Chat for SyncPlay groups | On/off: the chat for everyone in a SyncPlay group. Each person also needs SyncPlay access (Dashboard -> Users -> the person). |
+
 ## Details
 
 **Music page**
@@ -169,6 +179,14 @@ https://ice1.somafm.com/metal-128-mp3
 - A GitHub project's file is picked by name: the Windows installer over a portable zip, a Linux AppImage over a .deb, an Android .apk. The release list is fetched by the server, cached 6 hours (GitHub allows 60 lookups an hour without a key), and kept if GitHub is down. With no matching file, the link goes to the newest release's page.
 - Inside Jellyfin Desktop and the phone app, links go to the system browser (`NativeShell.openUrl`), where downloads and stores work. Those apps also get **You're using this**, and the old Jellyfin Media Player gets **Replaces the app you're using** on Jellyfin Desktop.
 
+**SyncPlay chat**
+
+- Only members of a group can read or write its chat; the server checks with Jellyfin's SyncPlay on every request. Jellyfin tracks members by user, not device, so the chat shows in all of a member's open Jellyfin windows.
+- Messages are kept in memory only (the last 200 per group) and are gone as soon as the group ends, or when Jellyfin restarts. Nothing is written to disk.
+- **–** shrinks it to the bubble; **×** hides it until you join another group (a chat button in the top bar brings it back). Enter sends.
+- The group button and **Back to the group's video** open Jellyfin's SyncPlay menu (Resume playback, Settings, Leave) over the chat. Esc or its added **Close** row closes it, from the top bar too.
+- The column needs a window at least 760 px wide; narrower windows and phones get a floating chat instead.
+
 **For other clients:** `GET /Tuner/sections` (signed in) returns the Classics library names, so a TV app can match them.
 
 ## How it works
@@ -178,7 +196,7 @@ jellyfin-web --(script added to index.html)--> tuner.js + tuner.css
      |  signed-in session
      v
 /Tuner/radio, /Tuner/tv, /Tuner/jamendo/*, /Tuner/sections,
-/Tuner/apps                                                   [sign-in]
+/Tuner/apps, /Tuner/party (SyncPlay chat, long poll)          [sign-in]
 /Tuner/radio/{n}/stream, .../logo?t=<ticket>                  [ticket]
      +--> station list and streams (relayed), Dispatcharr, HDHomeRun, Jamendo,
           GitHub releases (Get apps)
