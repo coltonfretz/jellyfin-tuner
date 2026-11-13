@@ -76,6 +76,18 @@ Taken on my own server, which also runs a custom theme ([Fretzflix Night](https:
 
 ![A search with no results and a "Can't find it? Request it" button](screenshots/request-search.webp)
 
+**Watch together:** the SyncPlay group's chat beside the video; the player shrinks to make room.
+
+![A SyncPlay movie playing with the group chat in a column on the right](screenshots/together-chat.webp)
+
+A YouTube video shared from the chat plays for the whole group, kept in step. Hide is just for you; Stop ends it for everyone.
+
+![A shared YouTube video (Worlds 2026 semifinal) with Hide and Stop for everyone above it and the chat beside it](screenshots/together-youtube.webp)
+
+Elsewhere in Jellyfin the chat floats in the corner, with a button back to the group's video.
+
+![The home page with the group chat floating in the bottom right and a "Back to the group's video" button](screenshots/together-floating.webp)
+
 ## Install
 
 Needs Jellyfin 12.2 or newer.
