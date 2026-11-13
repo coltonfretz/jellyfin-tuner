@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Controller.SyncPlay;
 using MediaBrowser.Controller.SyncPlay.Requests;
@@ -39,6 +40,14 @@ public class PartyChat
     public record Message(long Id, string User, string Text, DateTime At, bool System);
 
     public record Group(Guid Id, string Name, string Me, IReadOnlyList<string> Participants);
+
+    /// <summary>
+    /// A video the group is watching together instead of (or between) Jellyfin's own:
+    /// Kind "youtube" (Id = video id, kept in step), "twitch" (Id = channel, live) or
+    /// "twitchvod" (Id = a past broadcast's number). Twitch isn't kept in step. Position is in seconds at
+    /// <see cref="At"/>; while Playing, it moves on with the clock from there.
+    /// </summary>
+    public record Stage(long Version, string Kind, string Id, string By, bool Playing, double Position, DateTime At);
 
     /// <summary>The SyncPlay group this user is in right now, or null.</summary>
     public Group? Find(Guid userId, string? deviceId)
@@ -105,7 +114,7 @@ public class PartyChat
     /// open until there is one (or the time is up), so the page needn't ask every second.
     /// Returns null once the user is no longer in a group.
     /// </summary>
-    public async Task<(Group Group, List<Message> Messages)?> ReadAsync(Guid userId, string? deviceId, Guid knownGroup, long after, bool wait, CancellationToken ct)
+    public async Task<(Group Group, List<Message> Messages, Stage? Stage, long StageVersion)?> ReadAsync(Guid userId, string? deviceId, Guid knownGroup, long after, long knownStage, bool wait, CancellationToken ct)
     {
         var deadline = DateTime.UtcNow.AddSeconds(wait ? 24 : 0);
         while (true)
@@ -119,19 +128,25 @@ public class PartyChat
             Room room;
             Task signal;
             List<Message> messages;
+            Stage? stage;
+            long stageVersion;
+            bool stageNews;
             lock (_lock)
             {
                 room = Touch(group);
                 // A different group than the page knew: send it that group's whole history.
                 var from = group.Id == knownGroup ? after : 0;
                 messages = room.Messages.Where(m => m.Id > from).ToList();
+                stage = room.Stage;
+                stageVersion = room.StageVersion;
+                stageNews = group.Id != knownGroup || room.StageVersion != knownStage;
                 signal = room.Signal.Task;
             }
 
             var left = deadline - DateTime.UtcNow;
-            if (messages.Count > 0 || left <= TimeSpan.Zero)
+            if (messages.Count > 0 || stageNews || left <= TimeSpan.Zero)
             {
-                return (group, messages);
+                return (group, messages, stage, stageVersion);
             }
 
             // Wake on a new message, or every few seconds to notice joins, leaves and the group ending.
@@ -179,6 +194,151 @@ public class PartyChat
         return (true, null);
     }
 
+    /// <summary>
+    /// Starts, steers or stops the group's shared video. Anyone in the group may: it's their
+    /// evening, not the server owner's. Actions: share (with a YouTube or Twitch link),
+    /// play, pause, seek (with a position), stop.
+    /// </summary>
+    public (bool Ok, string? Error) Control(Guid userId, string? deviceId, string action, string? url, double? position)
+    {
+        var group = Find(userId, deviceId);
+        if (group is null)
+        {
+            return (false, "You're not in a SyncPlay group");
+        }
+
+        var pos = Math.Clamp(position ?? 0, 0, 7 * 24 * 3600);
+        lock (_lock)
+        {
+            var room = Touch(group);
+            var now = DateTime.UtcNow;
+            room.Controls.RemoveAll(t => now - t > TimeSpan.FromSeconds(10));
+            if (room.Controls.Count >= 40)
+            {
+                return (false, "Slow down a little");
+            }
+
+            room.Controls.Add(now);
+            var st = room.Stage;
+            switch (action)
+            {
+                case "share":
+                    var link = ParseLink(url);
+                    if (link is null)
+                    {
+                        return (false, "That isn't a YouTube or Twitch link");
+                    }
+
+                    room.Stage = new Stage(++room.StageVersion, link.Value.Kind, link.Value.Id, group.Me, true, link.Value.Start, now);
+                    Add(room, group.Me, $"{group.Me} shared a {link.Value.Kind switch { "youtube" => "YouTube video", "twitch" => "Twitch stream", _ => "Twitch video" }}", true);
+                    return (true, null);
+                case "stop":
+                    if (st is null)
+                    {
+                        return (true, null);
+                    }
+
+                    room.Stage = null;
+                    room.StageVersion++;
+                    Add(room, group.Me, $"{group.Me} stopped the shared video", true);
+                    return (true, null);
+                case "play":
+                case "pause":
+                case "seek":
+                    if (st is null)
+                    {
+                        return (false, "Nothing is being shared");
+                    }
+
+                    var playing = action == "play" || (action == "seek" && st.Playing);
+                    room.Stage = st with { Version = ++room.StageVersion, Playing = playing, Position = pos, At = now };
+                    Pulse(room);
+                    return (true, null);
+                default:
+                    return (false, "Unknown action");
+            }
+        }
+    }
+
+    private static readonly Regex YouTubeId = new("^[A-Za-z0-9_-]{11}$", RegexOptions.Compiled);
+    private static readonly Regex TwitchName = new("^[A-Za-z0-9_]{3,25}$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// A YouTube video or Twitch channel/video from a pasted link, or null. Only ids that
+    /// match each site's own format come out, so the page never puts anything else in a frame.
+    /// </summary>
+    public static (string Kind, string Id, double Start)? ParseLink(string? text)
+    {
+        if (!Uri.TryCreate((text ?? string.Empty).Trim(), UriKind.Absolute, out var u)
+            || (u.Scheme != Uri.UriSchemeHttps && u.Scheme != Uri.UriSchemeHttp))
+        {
+            return null;
+        }
+
+        var host = u.Host.ToLowerInvariant();
+        if (host.StartsWith("www.", StringComparison.Ordinal) || host.StartsWith("m.", StringComparison.Ordinal))
+        {
+            host = host[(host.IndexOf('.') + 1)..];
+        }
+
+        var parts = u.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var query = System.Web.HttpUtility.ParseQueryString(u.Query);
+        if (host is "youtube.com" or "youtu.be" or "youtube-nocookie.com" or "music.youtube.com")
+        {
+            string? id = null;
+            if (host == "youtu.be")
+            {
+                id = parts.FirstOrDefault();
+            }
+            else if (parts.Length == 1 && parts[0] == "watch")
+            {
+                id = query["v"];
+            }
+            else if (parts.Length >= 2 && parts[0] is "live" or "shorts" or "embed" or "v")
+            {
+                id = parts[1];
+            }
+
+            return id != null && YouTubeId.IsMatch(id) ? ("youtube", id, ParseStart(query["t"] ?? query["start"])) : null;
+        }
+
+        if (host is "twitch.tv" or "go.twitch.tv")
+        {
+            if (parts.Length >= 2 && parts[0] == "videos" && long.TryParse(parts[1], out var vod))
+            {
+                return ("twitchvod", vod.ToString(System.Globalization.CultureInfo.InvariantCulture), 0);
+            }
+
+            if (parts.Length == 1 && TwitchName.IsMatch(parts[0]))
+            {
+                return ("twitch", parts[0].ToLowerInvariant(), 0);
+            }
+        }
+
+        return null;
+    }
+
+    // YouTube's t=: 90, 90s or 1h2m3s.
+    private static double ParseStart(string? t)
+    {
+        if (string.IsNullOrEmpty(t))
+        {
+            return 0;
+        }
+
+        if (double.TryParse(t.TrimEnd('s'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var secs))
+        {
+            return Math.Max(0, secs);
+        }
+
+        var m = Regex.Match(t, @"^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$");
+        return m.Success
+            ? (m.Groups[1].Success ? int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) * 3600 : 0)
+              + (m.Groups[2].Success ? int.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture) * 60 : 0)
+              + (m.Groups[3].Success ? int.Parse(m.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture) : 0)
+            : 0;
+    }
+
     // Callers hold _lock.
     private Room Touch(Group group)
     {
@@ -220,7 +380,12 @@ public class PartyChat
             room.Messages.RemoveRange(0, room.Messages.Count - Keep);
         }
 
-        // Wake everyone waiting, then arm a fresh signal for the next message.
+        Pulse(room);
+    }
+
+    // Wake everyone waiting, then arm a fresh signal for the next change.
+    private static void Pulse(Room room)
+    {
         var fired = room.Signal;
         room.Signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         fired.TrySetResult();
@@ -237,6 +402,12 @@ public class PartyChat
         public List<(string User, DateTime At)> Recent { get; } = new();
 
         public DateTime Touched { get; set; }
+
+        public Stage? Stage { get; set; }
+
+        public long StageVersion { get; set; }
+
+        public List<DateTime> Controls { get; } = new();
 
         public TaskCompletionSource Signal { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }

@@ -7,11 +7,14 @@
  *     make room for it;
  *   - in full screen, or anywhere else in Jellyfin, it becomes a bubble in the bottom right
  *     that opens into a small chat window, and new messages peek out beside it;
- *   - minimize (-) turns it into the bubble, close (x) hides it until you join another
- *     group; a chat button in the top bar brings it back;
+ *   - x shrinks it to the bubble (it never disappears while you're in a group);
  *   - its group button opens Jellyfin's SyncPlay menu (Resume playback after leaving the
  *     video, Settings, Leave), offered as "Back to the group's video" away from the player,
- *     opened over the chat; Esc or its added Close button closes it.
+ *     opened over the chat; Esc or its added Close button closes it;
+ *   - anyone can share a YouTube or Twitch link (the chat's share button, or Watch together
+ *     on a message with a link). It opens for the whole group where the movie plays, with
+ *     the chat beside it. YouTube stays in step (anyone's play, pause and seek go to all);
+ *     Twitch plays live. Hide is just for you; Stop ends it for everyone.
  *
  * Talks to /Tuner/party (PartyController): one long-poll request open at a time, which the
  * server answers the moment someone writes. The server decides which group you're in from
@@ -29,9 +32,12 @@
     const P = {
         group: null, name: '', me: '', people: [], last: 0,
         open: true,             // panel showing (false = bubble)
-        closed: false,          // dismissed for this group
         unread: 0,
         mode: '',               // last layout applied
+        stage: null,            // the shared video (server's), or null
+        stageVersion: -1,       // which version of it we have
+        stageHidden: false,     // hidden on this screen only
+        skew: 0,                // server clock minus ours, ms
         fsOpen: false,          // opened from the bubble while in full screen
         wasFs: false,
     };
@@ -45,10 +51,10 @@
 
     // Open/minimized/closed is remembered per group for this browser tab.
     const stateKey = () => `tnr.party.${P.group}`;
-    function saveState() { try { sessionStorage.setItem(stateKey(), JSON.stringify({ open: P.open, closed: P.closed })); } catch (e) { /* private mode */ } }
+    function saveState() { try { sessionStorage.setItem(stateKey(), JSON.stringify({ open: P.open })); } catch (e) { /* private mode */ } }
     function loadState() {
-        try { const s = JSON.parse(sessionStorage.getItem(stateKey()) || 'null'); if (s) { P.open = !!s.open; P.closed = !!s.closed; return; } } catch (e) { /* ignore */ }
-        P.open = true; P.closed = false;
+        try { const s = JSON.parse(sessionStorage.getItem(stateKey()) || 'null'); if (s) { P.open = !!s.open; return; } } catch (e) { /* ignore */ }
+        P.open = true;
     }
 
     // ---------- styles ----------
@@ -57,7 +63,7 @@
 .tnrp { --tnrp-bg: #12161b; --tnrp-raise: #1c222a; --tnrp-line: #2a323c; --tnrp-text: #e8eaed; --tnrp-dim: #98a1ab;
   --tnrp-accent: #00a4dc; font-family: inherit; color: var(--tnrp-text); }
 .tnrp[hidden] { display: none !important; }
-.tnrp-panel { position: fixed; z-index: 1100; display: flex; flex-direction: column; background: var(--tnrp-bg);
+.tnrp-panel { position: fixed; z-index: 1295; display: flex; flex-direction: column; background: var(--tnrp-bg);
   border: 1px solid var(--tnrp-line); box-shadow: 0 8px 30px rgba(0,0,0,.5); }
 .tnrp.docked .tnrp-panel { top: 0; right: 0; bottom: 0; width: ${WIDTH}px; border-width: 0 0 0 1px; box-shadow: none; }
 .tnrp.float .tnrp-panel { right: 16px; bottom: 16px; width: ${WIDTH}px; height: min(480px, calc(100vh - 32px)); border-radius: 12px; overflow: hidden; }
@@ -81,12 +87,12 @@
 .tnrp-form button { background: var(--tnrp-accent); color: #fff; border: 0; border-radius: 50%; width: 2.4em; height: 2.4em;
   cursor: pointer; display: flex; align-items: center; justify-content: center; flex: none; }
 .tnrp-form button:disabled { opacity: .5; cursor: default; }
-.tnrp-bubble { position: fixed; z-index: 1100; right: 16px; bottom: 16px; width: 52px; height: 52px; border-radius: 50%; border: 0;
+.tnrp-bubble { position: fixed; z-index: 1295; right: 16px; bottom: 16px; width: 52px; height: 52px; border-radius: 50%; border: 0;
   background: var(--tnrp-accent); color: #fff; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; }
 .tnrp-badge { position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
   background: #E24B4A; color: #fff; font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; box-sizing: border-box; }
 .tnrp-badge:empty { display: none; }
-.tnrp-peek { position: fixed; z-index: 1100; right: 80px; bottom: 22px; max-width: min(320px, calc(100vw - 100px)); background: var(--tnrp-raise);
+.tnrp-peek { position: fixed; z-index: 1295; right: 80px; bottom: 22px; max-width: min(320px, calc(100vw - 100px)); background: var(--tnrp-raise);
   border: 1px solid var(--tnrp-line); border-radius: 12px; padding: .5em .8em; box-shadow: 0 4px 16px rgba(0,0,0,.5);
   opacity: 0; transform: translateX(8px); transition: opacity .2s, transform .2s; pointer-events: none; overflow-wrap: anywhere; }
 .tnrp-peek.show { opacity: 1; transform: none; }
@@ -106,12 +112,41 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
 .tnrp-sync { display: flex; align-items: center; gap: .5em; margin: .6em .9em 0; padding: .5em .8em; border-radius: 8px; cursor: pointer;
   background: rgba(0,164,220,.14); border: 1px solid rgba(0,164,220,.45); color: var(--tnrp-text); font: inherit; text-align: left; }
 .tnrp-sync:hover, .tnrp-sync:focus-visible { background: rgba(0,164,220,.25); outline: none; }
-.tnrp.player .tnrp-sync { display: none; }
+.tnrp.player .tnrp-sync.sp { display: none; }
 /* The Close button added to Jellyfin's SyncPlay popup, styled like the popup's own rows. */
 .tnrp-menuclose { display: flex; align-items: center; gap: 1em; width: 100%; padding: .9em 1.2em; margin-top: .3em; background: none;
   border: 0; border-top: 1px solid rgba(255,255,255,.12); color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .tnrp-menuclose:hover, .tnrp-menuclose:focus-visible { background: rgba(255,255,255,.08); outline: none; }
-.tnrp-reopen .tnrp-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #E24B4A; }
+/* The shared video: where the movie plays, left of the chat column. Above Jellyfin 12's top
+   bar (z-index 1100) and side drawer (1200) so its own Hide and Stop are always reachable;
+   below Jellyfin's menus (1300) and popups, and the chat (1295). */
+.tnrp-stage { position: fixed; z-index: 1290; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: flex; flex-direction: column; color: #e8eaed; }
+.tnrp-stage[hidden] { display: none; }
+body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
+.tnrp-stage-bar { display: flex; align-items: center; gap: .6em; padding: .5em .8em; background: #12161b; border-bottom: 1px solid #2a323c; flex: none; }
+.tnrp-stage-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tnrp-stage-title small { color: #98a1ab; margin-left: .5em; }
+.tnrp-btn { display: inline-flex; align-items: center; gap: .35em; background: #1c222a; color: #e8eaed; border: 1px solid #2a323c; border-radius: 18px;
+  padding: .4em .9em; font: inherit; cursor: pointer; white-space: nowrap; }
+.tnrp-btn:hover, .tnrp-btn:focus-visible { background: #262e38; outline: none; }
+.tnrp-btn .material-icons { font-size: 1.2em; }
+.tnrp-btn.danger { border-color: rgba(226,75,74,.6); }
+.tnrp-stage-frame { flex: 1; position: relative; min-height: 0; }
+.tnrp-stage-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.tnrp-stage-join { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; font-size: 1.2em; padding: .8em 1.4em;
+  border-radius: 30px; border: 0; background: #00a4dc; color: #fff; cursor: pointer; display: flex; align-items: center; gap: .4em; }
+.tnrp-stage-join[hidden], .tnrp-stage-note[hidden] { display: none; }
+.tnrp-stage-note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 80%; text-align: center; z-index: 2;
+  background: #1c222a; border: 1px solid #2a323c; border-radius: 10px; padding: 1em 1.4em; line-height: 1.4; }
+@media (max-width: 600px) { .tnrp-stage-bar .tnrp-btn span:not(.material-icons) { display: none; } }
+.tnrp-watch { margin-top: .3em; padding: .3em .8em; font-size: .9em; }
+.tnrp-share { display: flex; gap: .4em; padding: .6em .6em 0; }
+.tnrp-share[hidden] { display: none; }
+.tnrp-share input { flex: 1; min-width: 0; background: var(--tnrp-raise); color: var(--tnrp-text); border: 1px solid var(--tnrp-line);
+  border-radius: 18px; padding: .5em .9em; font: inherit; outline: none; }
+.tnrp-share input:focus { border-color: var(--tnrp-accent); }
+.tnrp.stage .tnrp-sync.sp { display: none; }
+.tnrp:not(.stagehidden) .tnrp-sync.st { display: none; }
 `;
 
     // ---------- page parts ----------
@@ -130,12 +165,17 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
   <div class="tnrp-head">
     <span class="material-icons" aria-hidden="true">forum</span>
     <div class="tnrp-title"><b></b><small></small></div>
+    <button type="button" class="tnrp-icon tnrp-sharebtn" title="Share a YouTube or Twitch video" aria-label="Share a YouTube or Twitch video"><span class="material-icons">add_to_queue</span></button>
     <button type="button" class="tnrp-icon tnrp-syncmenu" title="SyncPlay: resume, settings, leave" aria-label="SyncPlay menu"><span class="material-icons">groups</span></button>
-    <button type="button" class="tnrp-icon tnrp-min" title="Minimize" aria-label="Minimize chat"><span class="material-icons">remove</span></button>
-    <button type="button" class="tnrp-icon tnrp-x" title="Close chat" aria-label="Close chat"><span class="material-icons">close</span></button>
+    <button type="button" class="tnrp-icon tnrp-x" title="Shrink the chat to a button in the corner" aria-label="Shrink chat"><span class="material-icons">close</span></button>
   </div>
-  <button type="button" class="tnrp-sync"><span class="material-icons" aria-hidden="true">play_circle</span><span>Back to the group's video</span></button>
+  <button type="button" class="tnrp-sync sp"><span class="material-icons" aria-hidden="true">play_circle</span><span>Back to the group's video</span></button>
+  <button type="button" class="tnrp-sync st"><span class="material-icons" aria-hidden="true">smart_display</span><span>Back to the shared video</span></button>
   <div class="tnrp-list" role="log" aria-live="polite"></div>
+  <form class="tnrp-share" autocomplete="off" hidden>
+    <input type="url" placeholder="Paste a YouTube or Twitch link" aria-label="YouTube or Twitch link">
+    <button type="submit" class="tnrp-btn">Share</button>
+  </form>
   <form class="tnrp-form" autocomplete="off">
     <input type="text" maxlength="500" placeholder="Message the group" aria-label="Message">
     <button type="submit" title="Send" aria-label="Send"><span class="material-icons">send</span></button>
@@ -145,7 +185,7 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
 <div class="tnrp-peek" aria-hidden="true"></div>`;
         document.body.appendChild(root);
         list = root.querySelector('.tnrp-list');
-        input = root.querySelector('input');
+        input = root.querySelector('.tnrp-form input');
         sendBtn = root.querySelector('.tnrp-form button');
         bubble = root.querySelector('.tnrp-bubble');
         badge = root.querySelector('.tnrp-badge');
@@ -153,12 +193,33 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
         titleB = root.querySelector('.tnrp-title b');
         titleSmall = root.querySelector('.tnrp-title small');
 
-        root.querySelector('.tnrp-min').addEventListener('click', () => setOpen(false));
-        root.querySelector('.tnrp-x').addEventListener('click', () => { P.closed = true; saveState(); layout(); });
+        // x shrinks the chat to the bubble; it never vanishes completely while you're in a
+        // group, so there is always a visible way back (Fretzflix test 2026-11-12).
+        root.querySelector('.tnrp-x').addEventListener('click', () => setOpen(false));
         bubble.addEventListener('click', () => setOpen(true, true));
         root.querySelector('.tnrp-syncmenu').addEventListener('click', syncPlayMenu);
-        root.querySelector('.tnrp-sync').addEventListener('click', syncPlayMenu);
-        root.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); send(); });
+        root.querySelector('.tnrp-sync.sp').addEventListener('click', syncPlayMenu);
+        root.querySelector('.tnrp-sync.st').addEventListener('click', showStage);
+        const shareForm = root.querySelector('.tnrp-share');
+        const shareInput = shareForm.querySelector('input');
+        root.querySelector('.tnrp-sharebtn').addEventListener('click', () => {
+            shareForm.hidden = !shareForm.hidden;
+            if (!shareForm.hidden) shareInput.focus();
+        });
+        shareForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (await share(shareInput.value)) { shareInput.value = ''; shareForm.hidden = true; }
+        });
+        ['keydown', 'keyup', 'keypress'].forEach((t) => shareInput.addEventListener(t, (e) => {
+            e.stopPropagation();
+            if (t === 'keydown' && e.key === 'Escape') { shareForm.hidden = true; shareInput.blur(); }
+        }));
+        list.addEventListener('click', (e) => {
+            const b = e.target.closest('.tnrp-watch');
+            if (b) share(b.dataset.url);
+        });
+        buildStage();
+        root.querySelector('.tnrp-form').addEventListener('submit', (e) => { e.preventDefault(); send(); });
         // Enter sends. Handled here rather than left to the form: Jellyfin's keyboard handling
         // takes Enter before the form ever sees it.
         input.addEventListener('keydown', (e) => {
@@ -212,6 +273,11 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
         b.innerHTML = '<span class="material-icons" aria-hidden="true">close</span><span>Close</span>';
         b.addEventListener('click', (e) => { e.stopPropagation(); closeMenu(menu); });
         list.appendChild(b);
+        // Jellyfin opens this popup with Leave selected, so one stray Enter left the group
+        // (Fretzflix test 2026-11-12: typing in the chat right after Stop for everyone).
+        // Select Close instead. Jellyfin picks its row a moment after opening; follow up.
+        const pick = () => { if (menu.isConnected && menu.contains(document.activeElement) && document.activeElement !== b) b.focus(); };
+        [0, 150, 400].forEach((ms) => setTimeout(pick, ms));
     }
 
     // Jellyfin places the popup beside its top bar button, the far corner from the chat.
@@ -251,8 +317,9 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
 
     function layout() {
         if (!root) return;
-        const show = !!P.group && !P.closed && signedIn();
-        const player = playerOpen();
+        const show = !!P.group && signedIn();
+        const stageOn = stageShowing();
+        const player = playerOpen() || stageOn;
         const fs = fullScreen();
         if (fs !== P.wasFs) { P.wasFs = fs; P.fsOpen = false; }
         const open = fs ? P.fsOpen : P.open;
@@ -263,6 +330,9 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
         root.classList.toggle('float', mode === 'float');
         root.classList.toggle('bubble', mode === 'bubble');
         root.classList.toggle('player', player);
+        root.classList.toggle('stage', stageOn);
+        root.classList.toggle('stagehidden', !!(P.stage && P.stageHidden));
+        stageEl.hidden = !stageOn;
         root.classList.toggle('np', !player && nowPlayingBar());
         document.body.classList.toggle('tnrp-docked', docked);
         badge.textContent = P.unread ? (P.unread > 99 ? '99+' : String(P.unread)) : '';
@@ -273,28 +343,6 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
             // The player sizes its video on window resize; tell it the room changed.
             if (wasDocked !== docked) window.dispatchEvent(new Event('resize'));
         }
-        reopenButton(P.group && P.closed && signedIn());
-    }
-
-    // While the chat is closed, a chat button in Jellyfin's top bar brings it back.
-    function reopenButton(want) {
-        let b = document.querySelector('.tnrp-reopen');
-        if (!want) { if (b) b.remove(); return; }
-        const bar = document.querySelector('.skinHeader .headerRight');
-        if (!bar) return;
-        if (!b || b.parentElement !== bar) {
-            if (b) b.remove();
-            b = document.createElement('button');
-            b.type = 'button';
-            b.className = 'headerButton headerButtonRight paper-icon-button-light tnrp-reopen';
-            b.title = 'Group chat';
-            b.setAttribute('aria-label', 'Open group chat');
-            b.style.position = 'relative';
-            b.innerHTML = '<span class="material-icons" aria-hidden="true">forum</span><span class="tnrp-dot" hidden></span>';
-            b.addEventListener('click', () => { P.closed = false; P.open = true; P.unread = 0; saveState(); layout(); });
-            bar.insertBefore(b, bar.firstChild);
-        }
-        b.querySelector('.tnrp-dot').hidden = !P.unread;
     }
 
     const panelVisible = () => P.mode === 'docked' || P.mode === 'float';
@@ -336,6 +384,8 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
                 el.className = 'tnrp-msg';
                 const mine = m.user.toLowerCase() === P.me.toLowerCase();
                 el.innerHTML = `<b style="color:${mine ? 'var(--tnrp-accent)' : colorOf(m.user)}">${esc(m.user)}</b>${esc(m.text)}`;
+                const link = (LINK.exec(m.text) || [])[0];
+                if (link) el.insertAdjacentHTML('beforeend', `<div><button type="button" class="tnrp-btn tnrp-watch" data-url="${esc(link)}"><span class="material-icons" aria-hidden="true">smart_display</span>Watch together</button></div>`);
                 if (!mine) newest = m;
             }
             list.appendChild(el);
@@ -383,6 +433,8 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
     }
 
     function joined(r) {
+        setStage(null);
+        P.stageVersion = -1;
         P.group = r.group;
         P.last = 0;
         P.unread = 0;
@@ -391,6 +443,8 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
     }
 
     function left() {
+        setStage(null);
+        P.stageVersion = -1;
         P.group = null;
         P.people = [];
         P.last = 0;
@@ -410,7 +464,7 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
             if (user !== id) { user = id; if (P.group) left(); }
             let r;
             try {
-                const q = P.group ? `?group=${encodeURIComponent(P.group)}&after=${P.last}&wait=true` : '';
+                const q = P.group ? `?group=${encodeURIComponent(P.group)}&after=${P.last}&stage=${P.stageVersion}&wait=true` : '';
                 r = await api('Tuner/party' + q);
                 fails = 0;
             } catch (e) {
@@ -434,15 +488,265 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
             P.people = r.people || [];
             renderHead();
             addMessages(r.messages || [], fresh);
+            if (r.now) P.skew = Date.parse(r.now) - Date.now();
+            if (typeof r.stageVersion === 'number' && r.stageVersion !== P.stageVersion) {
+                P.stageVersion = r.stageVersion;
+                setStage(r.stage || null);
+            }
             layout();
         }
+    }
+
+    // ---------- the shared video ----------
+
+    // Links worth a Watch together button. The server decides what's really allowed.
+    const LINK = /https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be|twitch\.tv)\/[^\s<>"']+/i;
+    const KIND_NAME = { youtube: 'YouTube', twitch: 'Twitch', twitchvod: 'Twitch' };
+
+    let stageEl, frame, joinBtn, noteEl, stageTitle;
+    let mounted = null;          // "kind:id" in the frame now
+    let yt = null, ytOk = false, ytState = -1, ytTimer = null, ytApi = null;
+    let quietUntil = 0;          // our own player changes, not the viewer's, until then
+    let playTry = 0;
+
+    const stageShowing = () => !!(P.group && P.stage && !P.stageHidden);
+
+    function buildStage() {
+        stageEl = document.createElement('div');
+        stageEl.className = 'tnrp-stage';
+        stageEl.hidden = true;
+        stageEl.innerHTML = `
+<div class="tnrp-stage-bar">
+  <span class="material-icons" aria-hidden="true">smart_display</span>
+  <div class="tnrp-stage-title"></div>
+  <button type="button" class="tnrp-btn tnrp-stage-hide" title="Hide it on this screen; the others keep watching"><span class="material-icons" aria-hidden="true">visibility_off</span><span>Hide</span></button>
+  <button type="button" class="tnrp-btn danger tnrp-stage-stop" title="End the shared video for the whole group"><span class="material-icons" aria-hidden="true">stop_circle</span><span>Stop for everyone</span></button>
+</div>
+<div class="tnrp-stage-frame"></div>
+<button type="button" class="tnrp-stage-join" hidden><span class="material-icons" aria-hidden="true">play_arrow</span>Click to join the video</button>
+<div class="tnrp-stage-note" hidden></div>`;
+        document.body.appendChild(stageEl);
+        frame = stageEl.querySelector('.tnrp-stage-frame');
+        joinBtn = stageEl.querySelector('.tnrp-stage-join');
+        noteEl = stageEl.querySelector('.tnrp-stage-note');
+        stageTitle = stageEl.querySelector('.tnrp-stage-title');
+        stageEl.querySelector('.tnrp-stage-hide').addEventListener('click', hideStage);
+        stageEl.querySelector('.tnrp-stage-stop').addEventListener('click', () => control('stop'));
+        joinBtn.addEventListener('click', () => { joinBtn.hidden = true; playTry = Date.now(); if (yt && ytOk) { quiet(); yt.playVideo(); } });
+    }
+
+    // Hidden on this screen only (sound stops); "Back to the shared video" in the chat undoes it.
+    function hideStage() {
+        if (!P.stage || P.stageHidden) return;
+        P.stageHidden = true;
+        unmount();
+        layout();
+        typeHere();
+    }
+
+    // When the shared video goes away, the button just pressed goes with it and the keyboard
+    // would be left nowhere (or on a chat button, where Enter opens the SyncPlay popup). Put it
+    // in the message box. Not on touch screens, where that would pop up the keyboard.
+    function typeHere() {
+        if (!panelVisible() || !matchMedia('(pointer: fine)').matches) return;
+        const a = document.activeElement;
+        if (a && a !== document.body && !stageEl.contains(a) && !root.contains(a)) return;   // busy elsewhere
+        input.focus({ preventScroll: true });
+    }
+    function showStage() {
+        P.stageHidden = false;
+        P.stageHref = location.href;
+        mountStage();
+        layout();
+        sync(true);
+    }
+
+    async function share(url) {
+        try {
+            await api('Tuner/party/stage', { type: 'POST', data: JSON.stringify({ Action: 'share', Url: String(url || '').trim() }), contentType: 'application/json' });
+            return true;
+        } catch (e) {
+            sysLine(await errorText(e, "Couldn't share that"));
+            return false;
+        }
+    }
+
+    async function control(action, position) {
+        // Show it here straight away; the server's answer follows within a moment.
+        if (P.stage && action !== 'stop') {
+            const now = new Date(Date.now() + P.skew).toISOString();
+            P.stage = Object.assign({}, P.stage, { playing: action === 'play' || (action === 'seek' && P.stage.playing), position: position || 0, at: now });
+        }
+        try {
+            await api('Tuner/party/stage', { type: 'POST', data: JSON.stringify({ Action: action, Position: position || 0 }), contentType: 'application/json' });
+        } catch (e) {
+            sysLine(await errorText(e, "Couldn't reach the server"));
+        }
+    }
+
+    async function errorText(e, fallback) {
+        try { const j = e && typeof e.json === 'function' ? await e.json() : null; if (j && j.message) return j.message; } catch (x) { /* keep default */ }
+        return fallback;
+    }
+
+    // A new stage from the server (or null when it ended).
+    function setStage(st) {
+        const was = P.stage;
+        P.stage = st;
+        if (!st) {
+            P.stageHidden = false; unmount(); layout();
+            if (was) typeHere();
+            return;
+        }
+        const isNew = !was || was.kind !== st.kind || was.id !== st.id;
+        if (isNew) {
+            P.stageHidden = false;
+            P.stageHref = location.href;
+            pauseJellyfin();
+        }
+        stageTitle.innerHTML = `${esc(KIND_NAME[st.kind] || 'Video')}<small>shared by ${esc(st.by)}</small>`;
+        layout();
+        if (stageShowing()) mountStage(); else unmount();
+        sync(isNew);
+    }
+
+    // The group's Jellyfin video would play on under the shared one; pause it (SyncPlay
+    // pauses it for everyone, which is what the group wants anyway).
+    function pauseJellyfin() {
+        const v = document.querySelector('video.htmlvideoplayer');
+        if (!v || v.paused) return;
+        const b = document.querySelector('.videoOsdBottom .btnPause');
+        if (b) b.click(); else v.pause();
+    }
+
+    function unmount() {
+        if (yt) { try { yt.destroy(); } catch (e) { /* already gone */ } }
+        yt = null; ytOk = false; ytState = -1;
+        clearInterval(ytTimer); ytTimer = null;
+        if (frame) frame.innerHTML = '';
+        mounted = null;
+        if (joinBtn) joinBtn.hidden = true;
+        if (noteEl) noteEl.hidden = true;
+    }
+
+    function note(text) { noteEl.textContent = text; noteEl.hidden = !text; }
+
+    function mountStage() {
+        const st = P.stage;
+        if (!st) return;
+        const key = st.kind + ':' + st.id;
+        if (mounted === key) return;
+        unmount();
+        mounted = key;
+        if (st.kind === 'youtube') return mountYouTube(st);
+        // Twitch only plays inside pages it can see by name, over https.
+        const src = `https://player.twitch.tv/?${st.kind === 'twitchvod' ? 'video=v' : 'channel='}${encodeURIComponent(st.id)}&parent=${encodeURIComponent(location.hostname)}&autoplay=true`;
+        frame.innerHTML = `<iframe src="${esc(src)}" allow="autoplay; fullscreen" allowfullscreen title="Shared Twitch video"></iframe>`;
+        if (location.protocol !== 'https:') note('Twitch only plays when Jellyfin is opened with an https address (like your public one). The others can still watch.');
+    }
+
+    function loadYouTubeApi() {
+        if (!ytApi) {
+            ytApi = new Promise((resolve, reject) => {
+                if (window.YT && window.YT.Player) { resolve(); return; }
+                const prev = window.onYouTubeIframeAPIReady;
+                window.onYouTubeIframeAPIReady = () => { if (typeof prev === 'function') prev(); resolve(); };
+                const tag = document.createElement('script');
+                tag.src = 'https://www.youtube.com/iframe_api';
+                tag.onerror = () => { ytApi = null; reject(new Error('YouTube unreachable')); };
+                document.head.appendChild(tag);
+            });
+        }
+        return ytApi;
+    }
+
+    async function mountYouTube(st) {
+        const key = mounted;
+        try { await loadYouTubeApi(); } catch (e) { note("Couldn't load YouTube's player. Is YouTube blocked on this network?"); return; }
+        if (mounted !== key) return;   // changed while loading
+        frame.innerHTML = '<div class="tnrp-yt"></div>';
+        ytOk = false;
+        yt = new window.YT.Player(frame.firstChild, {
+            host: 'https://www.youtube-nocookie.com',
+            videoId: st.id,
+            width: '100%', height: '100%',
+            playerVars: { autoplay: 1, playsinline: 1, rel: 0, start: Math.floor(expected()) },
+            events: {
+                onReady: () => {
+                    ytOk = true;
+                    const d = yt.getVideoData && yt.getVideoData();
+                    if (d && d.title) stageTitle.innerHTML = `${esc(d.title)}<small>shared by ${esc(P.stage ? P.stage.by : '')}</small>`;
+                    sync(true);
+                },
+                onStateChange: onYouTubeState,
+                onError: (e) => note(e.data === 101 || e.data === 150
+                    ? "This video's owner doesn't allow it to play outside YouTube. Try another link."
+                    : "YouTube can't play this video."),
+            },
+        });
+        ytTimer = setInterval(() => tick(), 1000);
+    }
+
+    // Where the group is in the video right now, by the server's clock.
+    function expected() {
+        const st = P.stage;
+        if (!st) return 0;
+        let p = st.position;
+        if (st.playing) p += (Date.now() + P.skew - Date.parse(st.at)) / 1000;
+        return Math.max(0, p);
+    }
+    const isLive = () => { try { const d = yt.getVideoData(); return !!(d && d.isLive); } catch (e) { return false; } };
+    const quiet = () => { quietUntil = Date.now() + 1500; };
+    const isQuiet = () => Date.now() < quietUntil;
+
+    // Bring this screen's player to where the group is.
+    function sync(force) {
+        if (!yt || !ytOk || !P.stage || P.stage.kind !== 'youtube') return;
+        const st = yt.getPlayerState();
+        if (!isLive()) {
+            const want = expected();
+            if (force || Math.abs(yt.getCurrentTime() - want) > 2) { quiet(); yt.seekTo(want, true); }
+        }
+        if (P.stage.playing && st !== 1 && st !== 3) {
+            if (!playTry) playTry = Date.now();
+            quiet(); yt.playVideo();
+            // The browser blocks sound that starts without a click; ask for one.
+            if (Date.now() - playTry > 3000) joinBtn.hidden = false;
+        } else {
+            playTry = 0;
+            joinBtn.hidden = true;
+        }
+        if (!P.stage.playing && st === 1) { quiet(); yt.pauseVideo(); }
+    }
+
+    // Once a second: notice a seek made while paused (YouTube says nothing about those),
+    // otherwise keep in step.
+    function tick() {
+        if (!yt || !ytOk || !P.stage) return;
+        if (!P.stage.playing && ytState === 2 && !isQuiet() && !isLive() && Math.abs(yt.getCurrentTime() - P.stage.position) > 2) {
+            control('seek', yt.getCurrentTime());
+            return;
+        }
+        sync(false);
+    }
+
+    // The viewer used YouTube's own controls: tell the group.
+    function onYouTubeState(e) {
+        const prev = ytState;
+        ytState = e.data;
+        if (isQuiet() || !P.stage) return;
+        const cur = yt.getCurrentTime();
+        if (e.data === 1 && !P.stage.playing) control('play', cur);
+        else if (e.data === 2 && P.stage.playing) control('pause', cur);
+        else if (e.data === 1 && prev === 3 && !isLive() && Math.abs(cur - expected()) > 4) control('seek', cur);
     }
 
     // ---------- boot ----------
 
     // For troubleshooting from the browser console: TunerParty.state()
     window.TunerParty = {
-        state: () => ({ group: P.group, mode: P.mode, open: P.open, closed: P.closed, player: playerOpen(), fullScreen: fullScreen(), width: innerWidth }),
+        state: () => ({ group: P.group, mode: P.mode, open: P.open, player: playerOpen(), fullScreen: fullScreen(), width: innerWidth,
+            stage: P.stage, stageHidden: P.stageHidden, skew: P.skew, yt: yt && ytOk ? { state: yt.getPlayerState(), time: yt.getCurrentTime() } : null }),
     };
 
     function boot() {
@@ -451,18 +755,46 @@ body.tnrp-docked .videoOsdBottom, body.tnrp-docked .upNextContainer { right: ${W
         // The player opening and closing, the top bar being redrawn and the now-playing bar
         // coming and going don't fire one event we can listen to; a quick check is cheaper
         // than watching every change to the page.
-        setInterval(() => { if (P.group) layout(); }, 700);
+        setInterval(() => {
+            if (!P.group) return;
+            // Going somewhere else in Jellyfin (a link, the Back button) hides the shared video,
+            // so it can't hold the screen captive.
+            if (stageShowing() && P.stageHref && location.href !== P.stageHref) hideStage();
+            layout();
+        }, 700);
         // Esc closes the SyncPlay popup (from the chat or Jellyfin's top bar). Jellyfin only
         // does that in its TV layout. Capture phase, so the player doesn't also take Esc as
         // "leave the video".
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape' && e.key !== 'Esc') return;
             const menu = openMenu();
-            if (!menu) return;
+            if (!menu) {
+                // Esc anywhere but a text box hides the shared video.
+                const typing = e.target && e.target.matches && e.target.matches('input, textarea');
+                if (stageShowing() && !typing) { e.preventDefault(); e.stopPropagation(); hideStage(); }
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             closeMenu(menu);
         }, true);
+        // While the shared video is up, keys mustn't reach Jellyfin's player underneath (space
+        // would start the paused movie). Our own boxes and Jellyfin's popups still get them.
+        document.addEventListener('keydown', (e) => {
+            if (!stageShowing() || !playerOpen()) return;
+            if (root.contains(e.target) || stageEl.contains(e.target) || (e.target.closest && e.target.closest('.dialogContainer'))) return;
+            e.stopPropagation();
+        }, true);
+        // Safety net: while you're in a group, Enter in a form nobody handled would reload the
+        // page, and a reload ends your SyncPlay session (Fretzflix test 2026-11-12: the chat box
+        // lost its handler when a second form was added above it, and Enter ended the group). Jellyfin handles
+        // every form itself, so an unhandled one is always a mistake. Bubble phase on window,
+        // so it only sees submissions every other handler let through.
+        window.addEventListener('submit', (e) => {
+            if (!P.group || e.defaultPrevented) return;
+            e.preventDefault();
+            console.warn('Tuner: stopped a form from reloading the page during SyncPlay', e.target);
+        });
         // Every SyncPlay popup gets a plain Close button at the bottom.
         // (A frame later: the popup is added to the page first and marked open after.)
         new MutationObserver(() => requestAnimationFrame(() => document.querySelectorAll('.syncPlayGroupMenu').forEach(addCloseButton)))

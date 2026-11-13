@@ -39,6 +39,7 @@ Every part is off until you set it up.
 **Watch together**
 
 - **SyncPlay chat:** people in the same SyncPlay group get a chat in a column beside the video (the player shrinks to make room). Full screen turns it into a bubble; elsewhere in Jellyfin it floats in the bottom right with an unread count. Its group button opens SyncPlay's menu to get back to the video.
+- **Shared videos:** anyone in the group can share a YouTube or Twitch link (the chat's share button, or **Watch together** on a message with a link). It opens for everyone where the movie plays, with the chat beside it. YouTube stays in step: anyone's play, pause or seek reaches everyone. Twitch and YouTube live just play live.
 
 **Home and everywhere**
 
@@ -186,6 +187,16 @@ https://ice1.somafm.com/metal-128-mp3
 - **–** shrinks it to the bubble; **×** hides it until you join another group (a chat button in the top bar brings it back). Enter sends.
 - The group button and **Back to the group's video** open Jellyfin's SyncPlay menu (Resume playback, Settings, Leave) over the chat. Esc or its added **Close** row closes it, from the top bar too.
 - The column needs a window at least 760 px wide; narrower windows and phones get a floating chat instead.
+- While you're in a group, Enter can't reload the page (a reload would end your SyncPlay session).
+
+**Shared videos**
+
+- Links the server accepts: YouTube (`watch?v=`, `youtu.be/`, `/live/`, `/shorts/`, with `t=` for a start time) and Twitch (a channel, or `/videos/<number>`). Anything else is refused, and the page only ever gets a checked video id or channel name.
+- A Jellyfin video playing underneath is paused (through SyncPlay, so for everyone).
+- **Hide**, Esc, or going anywhere else in Jellyfin hides it on your screen only; **Back to the shared video** in the chat returns. **Stop for everyone** ends it.
+- YouTube is checked once a second and corrected when more than 2 seconds off. Ads only one person sees put them behind until they end. A browser that blocks sound until a click gets a **Click to join the video** button.
+- Twitch only plays when Jellyfin is opened over https (Twitch's rule for embedding).
+- Uses YouTube's privacy-enhanced player (youtube-nocookie.com).
 
 **For other clients:** `GET /Tuner/sections` (signed in) returns the Classics library names, so a TV app can match them.
 
@@ -196,10 +207,10 @@ jellyfin-web --(script added to index.html)--> tuner.js + tuner.css
      |  signed-in session
      v
 /Tuner/radio, /Tuner/tv, /Tuner/jamendo/*, /Tuner/sections,
-/Tuner/apps, /Tuner/party (SyncPlay chat, long poll)          [sign-in]
+/Tuner/apps, /Tuner/party (SyncPlay chat and shared video)    [sign-in]
 /Tuner/radio/{n}/stream, .../logo?t=<ticket>                  [ticket]
      +--> station list and streams (relayed), Dispatcharr, HDHomeRun, Jamendo,
-          GitHub releases (Get apps)
+          GitHub releases (Get apps), YouTube and Twitch players (shared videos, in the browser)
 ```
 
 - **Script injected as the page is served,** not edited on disk (read-only in Docker, wiped by updates). On any error the original page is served.

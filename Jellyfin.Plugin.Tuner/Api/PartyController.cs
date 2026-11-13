@@ -29,7 +29,7 @@ public class PartyController : ControllerBase
     private string? DeviceId => User.FindFirst("Jellyfin-DeviceId")?.Value;
 
     [HttpGet]
-    public async Task<ActionResult> Read([FromQuery] Guid group, [FromQuery] long after = 0, [FromQuery] bool wait = false, CancellationToken ct = default)
+    public async Task<ActionResult> Read([FromQuery] Guid group, [FromQuery] long after = 0, [FromQuery] long stage = -1, [FromQuery] bool wait = false, CancellationToken ct = default)
     {
         if (!Enabled)
         {
@@ -38,13 +38,13 @@ public class PartyController : ControllerBase
 
         try
         {
-            var r = await _chat.ReadAsync(UserId, DeviceId, group, after, wait, ct).ConfigureAwait(false);
+            var r = await _chat.ReadAsync(UserId, DeviceId, group, after, stage, wait, ct).ConfigureAwait(false);
             if (r is null)
             {
                 return Ok(new { enabled = true, inGroup = false });
             }
 
-            var (g, messages) = r.Value;
+            var (g, messages, st, version) = r.Value;
             Response.Headers.CacheControl = "no-store";
             return Ok(new
             {
@@ -55,6 +55,10 @@ public class PartyController : ControllerBase
                 me = g.Me,
                 people = g.Participants,
                 messages = messages.Select(m => new { id = m.Id, user = m.User, text = m.Text, at = m.At, system = m.System }),
+                // The clock the stage's times are on, so pages can line up with it.
+                now = DateTime.UtcNow,
+                stageVersion = version,
+                stage = st is null ? null : new { kind = st.Kind, id = st.Id, by = st.By, playing = st.Playing, position = st.Position, at = st.At },
             });
         }
         catch (OperationCanceledException)
@@ -62,6 +66,27 @@ public class PartyController : ControllerBase
             // The page went away mid-wait.
             return new EmptyResult();
         }
+    }
+
+    public class StageBody
+    {
+        public string? Action { get; set; }
+
+        public string? Url { get; set; }
+
+        public double? Position { get; set; }
+    }
+
+    [HttpPost("stage")]
+    public ActionResult Stage([FromBody] StageBody body)
+    {
+        if (!Enabled)
+        {
+            return NotFound();
+        }
+
+        var (ok, error) = _chat.Control(UserId, DeviceId, body?.Action ?? string.Empty, body?.Url, body?.Position);
+        return ok ? Ok(new { ok = true }) : BadRequest(new { message = error });
     }
 
     public class PostBody
