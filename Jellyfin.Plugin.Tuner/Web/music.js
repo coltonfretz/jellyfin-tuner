@@ -372,6 +372,17 @@
 
     // ---------- shared pieces ----------
 
+    // Covers fade in once loaded (tuner.css: .tnm-art img starts transparent). WHY (Fretzflix,
+    // 2026-11-15): a shelf's covers arrived together and popped in at full strength, so
+    // Catalog felt like it loaded all at once even with the cards rippling in. load doesn't
+    // bubble, so one capturing listener catches every cover. A failed one stays hidden and
+    // the panel behind it shows, instead of the browser's broken-image icon.
+    const coverShown = (e) => {
+        const t = e.target;
+        if (t && t.tagName === 'IMG' && t.parentElement && t.parentElement.classList.contains('tnm-art')) t.classList.add('tnm-in');
+    };
+    document.addEventListener('load', coverShown, true);
+
     function art(id, tag, name, cls, h) {
         const u = imgUrl(id, tag, h);
         return u

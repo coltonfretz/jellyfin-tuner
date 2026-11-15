@@ -360,6 +360,10 @@ body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; 
 .tnm-artbox { position: relative; }
 .tnm-art { aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--tnm-panel); }
 .tnm-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* music.js adds .tnm-in when a cover has loaded, so covers fade in instead of popping. */
+.tnm-art img { opacity: 0; transition: opacity .35s ease-out; }
+.tnm-art img.tnm-in { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .tnm-art img { transition: none; } }
 .tnm-noart { display: flex; align-items: center; justify-content: center; font-size: 1.6em; font-weight: 500; color: rgba(255, 255, 255, .85); }
 .tnm-round { border-radius: 50%; }
 .tnm-card:hover .tnm-art, .tnm-card:focus-visible .tnm-art { filter: brightness(.8); }
