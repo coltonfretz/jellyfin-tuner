@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.10.2",
+        "changelog": "Top bar: TV no longer stays highlighted after going from Guide or Classics to Request",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v1.0.10.2/tuner_1.0.10.2.zip",
+        "checksum": "fc1b3f1970dcf7903d359a31e310cf02",
+        "timestamp": "2026-11-15T11:32:58Z"
+      },
+      {
         "version": "1.0.10.1",
         "changelog": "Music: album covers fade in as they load instead of popping in all at once",
         "targetAbi": "12.2.0.0",
