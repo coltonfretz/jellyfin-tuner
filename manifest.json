@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.10.1",
+        "changelog": "Music: album covers fade in as they load instead of popping in all at once",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v1.0.10.1/tuner_1.0.10.1.zip",
+        "checksum": "6c956802cb173d118bf2344fc61a51e6",
+        "timestamp": "2026-11-15T11:24:01Z"
+      },
+      {
         "version": "1.0.10.0",
         "changelog": "Item art on hover (optional, Home tab): resting the mouse on a poster loads its background art, so the movie or show opens with the art already there",
         "targetAbi": "12.2.0.0",
