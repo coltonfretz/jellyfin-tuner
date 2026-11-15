@@ -1155,6 +1155,10 @@
         page.dispatchEvent(new CustomEvent('viewshow', { bubbles: true, detail: { type: 'custom', isRestored: false, options: {} } }));
         document.title = PAGES[kind].title;
         renderMini();
+        // Move the section highlight now. WHY (Fretzflix, 2026-11-15): TV stayed lit going from
+        // Guide or Classics to Request. The body observer only sees elements added or removed,
+        // and a kept page (Request's frame, Surf) is only un-hidden, so nothing re-checked it.
+        injectSections();
         try {
             if (kind === 'radio') { if (!S.loaded) await loadCatalog(); renderPage(); }
             else if (kind === 'music') await music().show(page, location.hash);
