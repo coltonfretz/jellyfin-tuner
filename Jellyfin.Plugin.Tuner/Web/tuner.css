@@ -544,11 +544,14 @@ body.tnr-music-on[data-tnr-page="radio"] .MuiAppBar-root .MuiStack-root > a[href
   .tnm-genres { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Floating "back to top" (tuner.js injectBackToTop), above the media bar. */
-.tnr-totop { position: fixed; right: 1.2em; bottom: 6.5em; z-index: 1000; width: 2.8em; height: 2.8em; border-radius: 50%; border: 0;
+/* Floating "back to top" (tuner.js injectBackToTop), above the media bar. In the rows'
+   right-hand gutter (they pad ~3.3% each side) and half see-through until pointed at:
+   at 1.2em / 2.8em wide it covered the edge of the right-most poster (review 2026-11-15). */
+.tnr-totop { position: fixed; right: .5em; bottom: 6.5em; z-index: 1000; width: 2.4em; height: 2.4em; border-radius: 50%; border: 0;
   background: #0f1216e0; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 10px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(.6em); pointer-events: none; transition: opacity .2s, transform .2s; }
-.tnr-totop.show { opacity: 1; transform: none; pointer-events: auto; }
+.tnr-totop.show { opacity: .6; transform: none; pointer-events: auto; }
+.tnr-totop.show:hover, .tnr-totop.show:focus-visible { opacity: 1; }
 .tnr-totop:hover, .tnr-totop:focus-visible { background: #22272e; outline: none; }
 
 /* Radio's random-station dice (tuner.js randomStation). */

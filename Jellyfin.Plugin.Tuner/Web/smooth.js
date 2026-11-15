@@ -105,7 +105,7 @@
         if (running) return;
         running = true;
         gliding(true);
-        lastTime = performance.now();
+        lastTime = 0; // the first frame sets it: see frame()
         requestAnimationFrame(frame);
     }
 
@@ -120,8 +120,16 @@
         // Something else moved the page since our last frame (scrollbar, keys, Jellyfin
         // restoring a position): it wins.
         if (Math.abs(window.scrollY - current) > 2) { stop(); return; }
-        if (now > lastTime) { gaps.push(now - lastTime); if (gaps.length > 1200) gaps.splice(0, 600); }
-        const dt = Math.min(0.1, (now - lastTime) / 1000);
+        // The first frame of a glide counts as one 60 Hz frame. WHY (1.0.11.1): start() used
+        // to stamp performance.now(), but Chrome runs the wheel handler BEFORE that frame's
+        // callback, whose timestamp is the frame start, so now - lastTime came out negative.
+        // A negative dt makes the damp factor negative: the page stepped backwards. At the
+        // top that meant scrollTo(-x), the browser held it at 0, the check above saw the
+        // mismatch and stopped: the first wheel turns did nothing (both reviewers,
+        // 2026-11-15, 11 of 12 tries). Partway down it was a small backwards jerk.
+        const first = !lastTime || now <= lastTime;
+        if (!first) { gaps.push(now - lastTime); if (gaps.length > 1200) gaps.splice(0, 600); }
+        const dt = first ? 1 / 60 : Math.min(0.1, (now - lastTime) / 1000);
         lastTime = now;
         target = clamp(target); // the page may have grown or shrunk (rows loading)
         // Lenis' damp(): lerp by 1 - e^(-lambda dt), lambda = lerp * 60.
