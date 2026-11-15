@@ -207,7 +207,10 @@ https://ice1.somafm.com/metal-128-mp3
 - Links the server accepts: YouTube (`watch?v=`, `youtu.be/`, `/live/`, `/shorts/`, with `t=` for a start time) and Twitch (a channel, or `/videos/<number>`). Anything else is refused, and the page only ever gets a checked video id or channel name.
 - A Jellyfin video playing underneath is paused (through SyncPlay, so for everyone).
 - **Hide**, Esc, or going anywhere else in Jellyfin hides it on your screen only; **Back to the shared video** in the chat returns. **Stop for everyone** ends it.
-- YouTube is checked once a second and corrected when more than 2 seconds off. Ads only one person sees put them behind until they end. A browser that blocks sound until a click gets a **Click to join the video** button.
+- YouTube is checked once a second and corrected when more than 2 seconds off. Ads only one person sees put them behind until they end.
+- A browser that won't start a video with sound (every iPhone) starts it muted, with a **Tap for sound** button. If even a muted start is refused, a **Click to join the video** button appears.
+- **Open on YouTube** (or Twitch) opens the video on its own site at the group's spot, for when it won't play inside Jellyfin. YouTube errors say what went wrong: error 152/153 means the app didn't send the page's address, which YouTube has required since July 2025. Browsers send it; Jellyfin Desktop 2.0 may not, so use a browser there.
+- A shared video that fails on someone's screen is written to Jellyfin's log as one warning line (`Tuner watch together: ...`) with the user, app, device, YouTube error code and browser, at most 20 per user per 10 minutes.
 - Twitch only plays when Jellyfin is opened over https (Twitch's rule for embedding).
 - Uses YouTube's privacy-enhanced player (youtube-nocookie.com).
 

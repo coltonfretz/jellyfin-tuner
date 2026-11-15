@@ -133,12 +133,16 @@ body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
 .tnrp-btn.danger { border-color: rgba(226,75,74,.6); }
 .tnrp-stage-frame { flex: 1; position: relative; min-height: 0; }
 .tnrp-stage-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-.tnrp-stage-join { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; font-size: 1.2em; padding: .8em 1.4em;
-  border-radius: 30px; border: 0; background: #00a4dc; color: #fff; cursor: pointer; display: flex; align-items: center; gap: .4em; }
-.tnrp-stage-join[hidden], .tnrp-stage-note[hidden] { display: none; }
+.tnrp-stage-join, .tnrp-stage-sound { position: absolute; left: 50%; top: 4.5em; transform: translateX(-50%); z-index: 2; font-size: 1.1em; padding: .7em 1.3em;
+  border-radius: 30px; border: 0; background: #00a4dc; color: #fff; cursor: pointer; display: flex; align-items: center; gap: .4em;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5); max-width: calc(100% - 32px); }
+.tnrp-stage-join[hidden], .tnrp-stage-sound[hidden], .tnrp-stage-note[hidden] { display: none; }
+a.tnrp-btn { text-decoration: none; }
 .tnrp-stage-note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 80%; text-align: center; z-index: 2;
   background: #1c222a; border: 1px solid #2a323c; border-radius: 10px; padding: 1em 1.4em; line-height: 1.4; }
 @media (max-width: 600px) { .tnrp-stage-bar .tnrp-btn span:not(.material-icons) { display: none; } }
+/* Open on YouTube keeps its words on phones: it's the way out when the video won't play. */
+@media (max-width: 600px) { .tnrp-stage-bar .tnrp-stage-open span:not(.material-icons) { display: inline; } }
 .tnrp-watch { margin-top: .3em; padding: .3em .8em; font-size: .9em; }
 .tnrp-share { display: flex; gap: .4em; padding: .6em .6em 0; }
 .tnrp-share[hidden] { display: none; }
@@ -503,11 +507,14 @@ body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
     const LINK = /https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be|twitch\.tv)\/[^\s<>"']+/i;
     const KIND_NAME = { youtube: 'YouTube', twitch: 'Twitch', twitchvod: 'Twitch' };
 
-    let stageEl, frame, joinBtn, noteEl, stageTitle;
+    let stageEl, frame, joinBtn, soundBtn, openLink, noteEl, stageTitle;
     let mounted = null;          // "kind:id" in the frame now
     let yt = null, ytOk = false, ytState = -1, ytTimer = null, ytApi = null;
     let quietUntil = 0;          // our own player changes, not the viewer's, until then
     let playTry = 0;
+    let mutedStart = false;      // muted so the browser would let it start (iPhones); sound needs a tap
+    let readyTimer = null;
+    let reported = new Set();    // problems already sent to the server for this video
 
     const stageShowing = () => !!(P.group && P.stage && !P.stageHidden);
 
@@ -519,11 +526,13 @@ body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
 <div class="tnrp-stage-bar">
   <span class="material-icons" aria-hidden="true">smart_display</span>
   <div class="tnrp-stage-title"></div>
+  <a class="tnrp-btn tnrp-stage-open" href="#" target="_blank" rel="noopener noreferrer" title="Open it on its own site, if it won't play here"><span class="material-icons" aria-hidden="true">open_in_new</span><span>Open on YouTube</span></a>
   <button type="button" class="tnrp-btn tnrp-stage-hide" title="Hide it on this screen; the others keep watching"><span class="material-icons" aria-hidden="true">visibility_off</span><span>Hide</span></button>
   <button type="button" class="tnrp-btn danger tnrp-stage-stop" title="End the shared video for the whole group"><span class="material-icons" aria-hidden="true">stop_circle</span><span>Stop for everyone</span></button>
 </div>
 <div class="tnrp-stage-frame"></div>
 <button type="button" class="tnrp-stage-join" hidden><span class="material-icons" aria-hidden="true">play_arrow</span>Click to join the video</button>
+<button type="button" class="tnrp-stage-sound" hidden><span class="material-icons" aria-hidden="true">volume_up</span><span>Tap for sound</span></button>
 <div class="tnrp-stage-note" hidden></div>`;
         document.body.appendChild(stageEl);
         frame = stageEl.querySelector('.tnrp-stage-frame');
@@ -533,6 +542,11 @@ body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
         stageEl.querySelector('.tnrp-stage-hide').addEventListener('click', hideStage);
         stageEl.querySelector('.tnrp-stage-stop').addEventListener('click', () => control('stop'));
         joinBtn.addEventListener('click', () => { joinBtn.hidden = true; playTry = Date.now(); if (yt && ytOk) { quiet(); yt.playVideo(); } });
+        soundBtn = stageEl.querySelector('.tnrp-stage-sound');
+        soundBtn.addEventListener('click', soundOn);
+        openLink = stageEl.querySelector('.tnrp-stage-open');
+        // Worked out at the click, so it opens where the group is now.
+        openLink.addEventListener('click', () => { openLink.href = siteUrl(); });
     }
 
     // Hidden on this screen only (sound stops); "Back to the shared video" in the chat undoes it.
@@ -623,9 +637,13 @@ body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
         if (yt) { try { yt.destroy(); } catch (e) { /* already gone */ } }
         yt = null; ytOk = false; ytState = -1;
         clearInterval(ytTimer); ytTimer = null;
+        clearTimeout(readyTimer); readyTimer = null;
         if (frame) frame.innerHTML = '';
         mounted = null;
+        mutedStart = false; playTry = 0;
+        reported = new Set();
         if (joinBtn) joinBtn.hidden = true;
+        if (soundBtn) { soundBtn.hidden = true; soundBtn.querySelector('span:not(.material-icons)').textContent = 'Tap for sound'; }
         if (noteEl) noteEl.hidden = true;
     }
 
@@ -638,11 +656,73 @@ body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
         if (mounted === key) return;
         unmount();
         mounted = key;
+        openLink.querySelector('span:not(.material-icons)').textContent = st.kind === 'youtube' ? 'Open on YouTube' : 'Open on Twitch';
+        openLink.href = siteUrl();
         if (st.kind === 'youtube') return mountYouTube(st);
         // Twitch only plays inside pages it can see by name, over https.
         const src = `https://player.twitch.tv/?${st.kind === 'twitchvod' ? 'video=v' : 'channel='}${encodeURIComponent(st.id)}&parent=${encodeURIComponent(location.hostname)}&autoplay=true`;
         frame.innerHTML = `<iframe src="${esc(src)}" allow="autoplay; fullscreen" allowfullscreen title="Shared Twitch video"></iframe>`;
-        if (location.protocol !== 'https:') note('Twitch only plays when Jellyfin is opened with an https address (like your public one). The others can still watch.');
+        if (location.protocol !== 'https:') {
+            note('Twitch only plays when Jellyfin is opened with an https address (like your public one). The others can still watch.');
+            report('twitch-needs-https');
+        }
+    }
+
+    // The shared video on its own site, at the group's spot (not for live streams: that's "now").
+    function siteUrl() {
+        const st = P.stage;
+        if (!st) return '#';
+        if (st.kind === 'twitch') return `https://www.twitch.tv/${encodeURIComponent(st.id)}`;
+        if (st.kind === 'twitchvod') return `https://www.twitch.tv/videos/${encodeURIComponent(st.id)}`;
+        const t = yt && ytOk && isLive() ? 0 : Math.floor(expected());
+        return `https://www.youtube.com/watch?v=${encodeURIComponent(st.id)}${t > 0 ? `&t=${t}s` : ''}`;
+    }
+
+    // What YouTube's error codes mean, for the viewer. 152/153: YouTube didn't get the page's
+    // address (it has required one since July 2025). Browsers send it; apps that show Jellyfin
+    // in a built-in browser, like Jellyfin Desktop 2.0, may not.
+    function youTubeErrorText(code) {
+        if (code === 101 || code === 150) return "This video's owner doesn't allow it to play outside YouTube. Use Open on YouTube above.";
+        if (code === 152 || code === 153) return `This app can't play YouTube videos (YouTube error ${code}). Open Fretzflix in a web browser like Firefox or Chrome, or use Open on YouTube above.`;
+        if (code === 100) return 'This video is private or was removed.';
+        if (code === 2) return "That link doesn't point to a playable video.";
+        if (code === 5) return `This browser couldn't play the video (YouTube error 5). Try Open on YouTube above.`;
+        return `YouTube can't play this video here (error ${code}). Try Open on YouTube above.`;
+    }
+
+    // Tell the server once per video and problem, so it lands in Jellyfin's log with the app
+    // and device. Best effort: a failed report changes nothing on screen.
+    function report(problem, code) {
+        const st = P.stage;
+        if (!st || reported.has(problem)) return;
+        reported.add(problem);
+        let live = false;
+        try { live = !!(yt && ytOk && isLive()); } catch (e) { /* no player */ }
+        api('Tuner/party/report', {
+            type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ Problem: problem, Kind: st.kind, VideoId: st.id, Code: typeof code === 'number' ? code : null, Live: live, Agent: navigator.userAgent }),
+        }).catch(() => { /* older server or offline */ });
+    }
+
+    // Undo the muted start. An iPhone may still refuse sound that isn't asked for inside
+    // YouTube's own player; then point at YouTube's speaker button instead.
+    function soundOn() {
+        if (!yt || !ytOk) return;
+        quiet();
+        yt.unMute();
+        if (yt.getPlayerState() !== 1) yt.playVideo();
+        setTimeout(() => {
+            if (!yt || !ytOk) return;
+            if (!yt.isMuted() && yt.getPlayerState() === 1) { mutedStart = false; soundBtn.hidden = true; return; }
+            if (yt.isMuted()) {
+                soundBtn.querySelector('span:not(.material-icons)').textContent = "Tap the speaker in YouTube's player";
+                report('unmute-refused');
+            } else {
+                // Unmuting paused it (Safari does that): it needs a tap on the video itself.
+                soundBtn.hidden = true;
+                joinBtn.hidden = false;
+            }
+        }, 1200);
     }
 
     function loadYouTubeApi() {
@@ -662,7 +742,7 @@ body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
 
     async function mountYouTube(st) {
         const key = mounted;
-        try { await loadYouTubeApi(); } catch (e) { note("Couldn't load YouTube's player. Is YouTube blocked on this network?"); return; }
+        try { await loadYouTubeApi(); } catch (e) { note("Couldn't load YouTube's player. Is YouTube blocked on this network? Open on YouTube above may still work."); report('youtube-api-blocked'); return; }
         if (mounted !== key) return;   // changed while loading
         frame.innerHTML = '<div class="tnrp-yt"></div>';
         ytOk = false;
@@ -674,17 +754,26 @@ body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
             events: {
                 onReady: () => {
                     ytOk = true;
+                    clearTimeout(readyTimer);
                     const d = yt.getVideoData && yt.getVideoData();
                     if (d && d.title) stageTitle.innerHTML = `${esc(d.title)}<small>shared by ${esc(P.stage ? P.stage.by : '')}</small>`;
                     sync(true);
                 },
                 onStateChange: onYouTubeState,
-                onError: (e) => note(e.data === 101 || e.data === 150
-                    ? "This video's owner doesn't allow it to play outside YouTube. Try another link."
-                    : "YouTube can't play this video."),
+                onError: (e) => {
+                    note(youTubeErrorText(e.data));
+                    joinBtn.hidden = true; soundBtn.hidden = true;
+                    report('youtube-error', e.data);
+                },
             },
         });
         ytTimer = setInterval(() => tick(), 1000);
+        // A player that never says it's ready fails silently otherwise.
+        readyTimer = setTimeout(() => {
+            if (mounted !== key || ytOk) return;
+            note("YouTube's player didn't start here. Use Open on YouTube above.");
+            report('youtube-never-ready');
+        }, 20000);
     }
 
     // Where the group is in the video right now, by the server's clock.
@@ -709,13 +798,21 @@ body.tnrp-docked .tnrp-stage { right: ${WIDTH}px; }
         }
         if (P.stage.playing && st !== 1 && st !== 3) {
             if (!playTry) playTry = Date.now();
+            const waited = Date.now() - playTry;
+            // The browser blocks video with sound that starts without a tap (every iPhone).
+            // Muted it's allowed, so start muted and offer the sound with a button.
+            if (waited > 3000 && !mutedStart) { mutedStart = true; yt.mute(); report('autoplay-blocked'); }
             quiet(); yt.playVideo();
-            // The browser blocks sound that starts without a click; ask for one.
-            if (Date.now() - playTry > 3000) joinBtn.hidden = false;
+            // Not even muted: ask for a tap.
+            if (waited > 7000) joinBtn.hidden = false;
         } else {
             playTry = 0;
             joinBtn.hidden = true;
         }
+        // Started muted and still muted (they didn't use YouTube's own speaker button).
+        if (soundBtn) soundBtn.hidden = !(mutedStart && st === 1 && yt.isMuted());
+        // Only once it plays: the player reports a new mute a moment after asking for it.
+        if (mutedStart && st === 1 && !yt.isMuted()) mutedStart = false;
         if (!P.stage.playing && st === 1) { quiet(); yt.pauseVideo(); }
     }
 
