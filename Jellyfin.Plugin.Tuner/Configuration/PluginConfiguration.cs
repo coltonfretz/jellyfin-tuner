@@ -92,6 +92,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool SmoothScrolling { get; set; }
 
     /// <summary>
+    /// Smooth scrolling even on devices set to reduce motion. WHY (2026-11-15): Colton's own
+    /// computer has reduce motion on (animations off), so 1.0.9.0 never glided for him, and
+    /// he wanted the glide on Fretzflix without turning animations back on everywhere.
+    /// </summary>
+    public bool SmoothIgnoreReducedMotion { get; set; }
+
+    /// <summary>
     /// Days between redraws of each library's My Media tile, 0 for never. WHY: Jellyfin picks
     /// a random backdrop for a tile only when it redraws it, which happens when a library gets
     /// a metadata refresh, so a library that rarely changes kept the same picture for weeks.

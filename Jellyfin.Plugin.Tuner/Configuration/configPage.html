@@ -102,7 +102,13 @@
                             <span>Smooth scrolling: the mouse wheel glides the page instead of jumping</span>
                         </label>
                     </div>
-                    <div class="fieldDescription">Browser and desktop apps. Lists that scroll on their own, touch screens, the TV layout and "reduce motion" keep normal scrolling. Changes show up after a page reload.</div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="SmoothIgnoreReducedMotion" />
+                            <span>Even when the device asks for reduced motion</span>
+                        </label>
+                    </div>
+                    <div class="fieldDescription">Browser and desktop apps. Lists that scroll on their own, touch screens and the TV layout keep normal scrolling, and so do devices set to reduce motion (Windows: animation effects off) unless the second box is ticked. Changes show up after a page reload.</div>
 
                     <h2>My Media</h2>
                     <div class="inputContainer">
@@ -314,6 +320,7 @@
                         page.querySelector('#RotateSeconds').value = config.RotateSeconds || 120;
                         page.querySelector('#HideCollectionsLibrary').checked = config.HideCollectionsLibrary !== false;
                         page.querySelector('#SmoothScrolling').checked = !!config.SmoothScrolling;
+                        page.querySelector('#SmoothIgnoreReducedMotion').checked = !!config.SmoothIgnoreReducedMotion;
                         page.querySelector('#MusicPage').checked = !!config.MusicPage;
                         page.querySelector('#TvSection').checked = !!config.TvSection;
                         page.querySelector('#MoviesSection').checked = !!config.MoviesSection;
@@ -343,6 +350,7 @@
                         config.RotateSeconds = Math.max(20, parseInt(page.querySelector('#RotateSeconds').value, 10) || 120);
                         config.HideCollectionsLibrary = page.querySelector('#HideCollectionsLibrary').checked;
                         config.SmoothScrolling = page.querySelector('#SmoothScrolling').checked;
+                        config.SmoothIgnoreReducedMotion = page.querySelector('#SmoothIgnoreReducedMotion').checked;
                         config.MusicPage = page.querySelector('#MusicPage').checked;
                         config.TvSection = page.querySelector('#TvSection').checked;
                         config.MoviesSection = page.querySelector('#MoviesSection').checked;

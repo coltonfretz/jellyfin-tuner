@@ -12,7 +12,7 @@
  *    lyrics, side menu, MUI menus) keeps the browser's scrolling. So do horizontal rows,
  *    Shift+wheel, Ctrl+wheel (zoom) and anything another handler already took.
  *  - Off in Jellyfin's TV layout (the remote moves focus, not the wheel), with
- *    "reduce motion" on, in full screen, and while a dialog or menu has locked the page.
+ *    "reduce motion" on (unless the second setting says to glide anyway), in full screen, and while a dialog or menu has locked the page.
  *  - Anything else that scrolls the page (scrollbar drag, keys, Jellyfin restoring a
  *    position, Back) wins: the glide notices and stops instead of fighting it.
  * Touch screens are left alone; they already glide natively.
@@ -30,7 +30,12 @@
     let lastTime = 0;
 
     const root = document.documentElement;
-    const reduced = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+    const reducedQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+    // "Even when the device asks for reduced motion" (setting): Windows' "Animation effects"
+    // off also means reduce motion, and plenty of people turn that off just for snappiness.
+    const ME = document.currentScript;
+    const IGNORE_REDUCED = !!(ME && ME.dataset.ignoreReduced);
+    const reduced = { get matches() { return !IGNORE_REDUCED && reducedQuery.matches; } };
     const maxScroll = () => Math.max(0, (document.scrollingElement || root).scrollHeight - window.innerHeight);
     const clamp = (v) => Math.min(maxScroll(), Math.max(0, v));
 

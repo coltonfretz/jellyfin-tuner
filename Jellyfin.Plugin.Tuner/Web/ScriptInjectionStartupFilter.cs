@@ -134,7 +134,8 @@ public class ScriptInjectionStartupFilter : IStartupFilter
 
                 if (config?.SmoothScrolling == true)
                 {
-                    tags += $"<script src=\"../Tuner/smooth.js?v={v}\" defer></script>";
+                    var ignoreReduced = config.SmoothIgnoreReducedMotion ? " data-ignore-reduced=\"1\"" : string.Empty;
+                    tags += $"<script src=\"../Tuner/smooth.js?v={v}\"{ignoreReduced} defer></script>";
                 }
 
                 if (config?.SyncPlayChat == true)

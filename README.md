@@ -48,7 +48,7 @@ Every part is off until you set it up.
 - Library tiles get a new picture every few days.
 - The player's controls stay up while the mouse rests on them.
 - A floating **back to top** button on long pages.
-- **Smooth scrolling (optional):** the mouse wheel glides the page and eases to a stop, like [lenis.dev](https://lenis.dev). Boxes that scroll on their own, touch screens, the TV layout and "reduce motion" keep normal scrolling.
+- **Smooth scrolling (optional):** the mouse wheel glides the page and eases to a stop, like [lenis.dev](https://lenis.dev). Boxes that scroll on their own, touch screens, the TV layout and "reduce motion" (unless you choose otherwise) keep normal scrolling.
 
 **Works in** web-based apps: browsers, Jellyfin Desktop (and the older Jellyfin Media Player), and the official Android and iPhone apps. Native TV apps (Android TV, Roku, Apple TV) draw their own screens and won't show it.
 
@@ -136,7 +136,7 @@ Four tabs. **Turn off the pages** (below them) hides everything without uninstal
 | Seasons | `Name=MM-DD..MM-DD;...`, both days included (`Holidays=12-01..01-05`). Name is a collection. |
 | Hide the Collections library | Keeps the all-year Collections tile out of My Media. |
 | Library tile pictures | Days between new pictures; 0 = never (use 0 if you uploaded your own). |
-| Smooth scrolling | On/off: the wheel glides the page instead of jumping. Off by default. |
+| Smooth scrolling | On/off: the wheel glides the page instead of jumping. Off by default. A second box glides even on devices set to reduce motion (Windows: animation effects off). |
 
 ## Station list format
 
