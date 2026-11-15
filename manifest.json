@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.11.1",
+        "changelog": "Mouse wheel works from the top of a page again; back-to-top button sits in the margin",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v1.0.11.1/tuner_1.0.11.1.zip",
+        "checksum": "bf88edb9a54948d9f487943034e7a5b9",
+        "timestamp": "2026-11-15T12:39:59Z"
+      },
+      {
         "version": "1.0.11.0",
         "changelog": "Surf TV: opens with a channel card that fades into the picture, and the page rises in like the rest of Fretzflix; flipping channels is unchanged",
         "targetAbi": "12.2.0.0",
