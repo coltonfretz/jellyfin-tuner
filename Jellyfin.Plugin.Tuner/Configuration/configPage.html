@@ -95,6 +95,15 @@
                     </div>
                     <div class="fieldDescription">Changes show up after a page reload.</div>
 
+                    <h2>Everywhere</h2>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="SmoothScrolling" />
+                            <span>Smooth scrolling: the mouse wheel glides the page instead of jumping</span>
+                        </label>
+                    </div>
+                    <div class="fieldDescription">Browser and desktop apps. Lists that scroll on their own, touch screens, the TV layout and "reduce motion" keep normal scrolling. Changes show up after a page reload.</div>
+
                     <h2>My Media</h2>
                     <div class="inputContainer">
                         <input is="emby-input" type="text" id="Seasons" label="Seasonal collections" />
@@ -304,6 +313,7 @@
                         page.querySelector('#MixMusicArtists').checked = config.MixMusicArtists !== false;
                         page.querySelector('#RotateSeconds').value = config.RotateSeconds || 120;
                         page.querySelector('#HideCollectionsLibrary').checked = config.HideCollectionsLibrary !== false;
+                        page.querySelector('#SmoothScrolling').checked = !!config.SmoothScrolling;
                         page.querySelector('#MusicPage').checked = !!config.MusicPage;
                         page.querySelector('#TvSection').checked = !!config.TvSection;
                         page.querySelector('#MoviesSection').checked = !!config.MoviesSection;
@@ -332,6 +342,7 @@
                         config.MixMusicArtists = page.querySelector('#MixMusicArtists').checked;
                         config.RotateSeconds = Math.max(20, parseInt(page.querySelector('#RotateSeconds').value, 10) || 120);
                         config.HideCollectionsLibrary = page.querySelector('#HideCollectionsLibrary').checked;
+                        config.SmoothScrolling = page.querySelector('#SmoothScrolling').checked;
                         config.MusicPage = page.querySelector('#MusicPage').checked;
                         config.TvSection = page.querySelector('#TvSection').checked;
                         config.MoviesSection = page.querySelector('#MoviesSection').checked;

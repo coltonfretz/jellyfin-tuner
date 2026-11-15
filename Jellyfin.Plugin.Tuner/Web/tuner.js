@@ -2340,7 +2340,9 @@
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'tnr-totop'; b.title = 'Back to top'; b.setAttribute('aria-label', 'Back to top');
         b.innerHTML = '<span class="material-icons" aria-hidden="true">arrow_upward</span>';
-        b.addEventListener('click', () => window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+        // smooth.js (Smooth scrolling setting) glides it with the same feel as the wheel.
+        b.addEventListener('click', () => (window.TunerSmooth ? window.TunerSmooth.scrollTo(0)
+            : window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })));
         document.body.appendChild(b);
         let tick = false;
         const sync = () => { tick = false; b.classList.toggle('show', window.scrollY > window.innerHeight * 2 && !document.fullscreenElement); };

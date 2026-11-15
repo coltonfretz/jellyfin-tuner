@@ -85,6 +85,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool HideCollectionsLibrary { get; set; } = true;
 
     /// <summary>
+    /// Mouse-wheel scrolling glides and eases out (smooth.js) instead of jumping a notch at a
+    /// time. WHY: Colton wanted Fretzflix to scroll like lenis.dev (2026-11-15). Off by
+    /// default: taking over the wheel is a taste call each server should make.
+    /// </summary>
+    public bool SmoothScrolling { get; set; }
+
+    /// <summary>
     /// Days between redraws of each library's My Media tile, 0 for never. WHY: Jellyfin picks
     /// a random backdrop for a tile only when it redraws it, which happens when a library gets
     /// a metadata refresh, so a library that rarely changes kept the same picture for weeks.

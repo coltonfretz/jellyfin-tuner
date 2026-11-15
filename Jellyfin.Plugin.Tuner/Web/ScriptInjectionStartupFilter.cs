@@ -132,6 +132,11 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     tags += $"<script src=\"../Tuner/music.js?v={v}\" data-min-songs=\"{min}\" data-requests=\"{req}\" defer></script>";
                 }
 
+                if (config?.SmoothScrolling == true)
+                {
+                    tags += $"<script src=\"../Tuner/smooth.js?v={v}\" defer></script>";
+                }
+
                 if (config?.SyncPlayChat == true)
                 {
                     tags += $"<script src=\"../Tuner/party.js?v={v}\" defer></script>";
