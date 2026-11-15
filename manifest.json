@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.11.0",
+        "changelog": "Surf TV: opens with a channel card that fades into the picture, and the page rises in like the rest of Fretzflix; flipping channels is unchanged",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v1.0.11.0/tuner_1.0.11.0.zip",
+        "checksum": "379d7be46d221c7b37cbee04108db7a8",
+        "timestamp": "2026-11-15T11:41:20Z"
+      },
+      {
         "version": "1.0.10.2",
         "changelog": "Top bar: TV no longer stays highlighted after going from Guide or Classics to Request",
         "targetAbi": "12.2.0.0",
