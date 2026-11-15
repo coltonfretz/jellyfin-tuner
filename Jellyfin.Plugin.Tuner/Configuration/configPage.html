@@ -108,7 +108,13 @@
                             <span>Even when the device asks for reduced motion</span>
                         </label>
                     </div>
-                    <div class="fieldDescription">Browser and desktop apps. Lists that scroll on their own, touch screens and the TV layout keep normal scrolling, and so do devices set to reduce motion (Windows: animation effects off) unless the second box is ticked. Changes show up after a page reload.</div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="WarmItemPages" />
+                            <span>Load a movie or show's background art while the mouse rests on its poster</span>
+                        </label>
+                    </div>
+                    <div class="fieldDescription">Browser and desktop apps. Lists that scroll on their own, touch screens and the TV layout keep normal scrolling, and so do devices set to reduce motion (Windows: animation effects off) unless the second box is ticked. Background art: the page then opens with its art already there; it waits for the mouse to rest, loads one at a time, and starts after the first item page you open. Changes show up after a page reload.</div>
 
                     <h2>My Media</h2>
                     <div class="inputContainer">
@@ -321,6 +327,7 @@
                         page.querySelector('#HideCollectionsLibrary').checked = config.HideCollectionsLibrary !== false;
                         page.querySelector('#SmoothScrolling').checked = !!config.SmoothScrolling;
                         page.querySelector('#SmoothIgnoreReducedMotion').checked = !!config.SmoothIgnoreReducedMotion;
+                        page.querySelector('#WarmItemPages').checked = !!config.WarmItemPages;
                         page.querySelector('#MusicPage').checked = !!config.MusicPage;
                         page.querySelector('#TvSection').checked = !!config.TvSection;
                         page.querySelector('#MoviesSection').checked = !!config.MoviesSection;
@@ -351,6 +358,7 @@
                         config.HideCollectionsLibrary = page.querySelector('#HideCollectionsLibrary').checked;
                         config.SmoothScrolling = page.querySelector('#SmoothScrolling').checked;
                         config.SmoothIgnoreReducedMotion = page.querySelector('#SmoothIgnoreReducedMotion').checked;
+                        config.WarmItemPages = page.querySelector('#WarmItemPages').checked;
                         config.MusicPage = page.querySelector('#MusicPage').checked;
                         config.TvSection = page.querySelector('#TvSection').checked;
                         config.MoviesSection = page.querySelector('#MoviesSection').checked;

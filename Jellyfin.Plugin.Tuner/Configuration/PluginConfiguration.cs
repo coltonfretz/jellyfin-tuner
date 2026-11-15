@@ -99,6 +99,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool SmoothIgnoreReducedMotion { get; set; }
 
     /// <summary>
+    /// Load an item's backdrop while the mouse rests on its poster, so its page opens with the
+    /// art already there (tuner.js warmItemPages). WHY: the backdrop is the slowest part of
+    /// opening an item page (Fretzflix, 2026-11-15). Off by default.
+    /// </summary>
+    public bool WarmItemPages { get; set; }
+
+    /// <summary>
     /// Days between redraws of each library's My Media tile, 0 for never. WHY: Jellyfin picks
     /// a random backdrop for a tile only when it redraws it, which happens when a library gets
     /// a metadata refresh, so a library that rarely changes kept the same picture for weeks.

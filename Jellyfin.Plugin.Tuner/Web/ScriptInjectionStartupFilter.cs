@@ -111,6 +111,11 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     sections += " data-get-apps=\"1\"";
                 }
 
+                if (config?.WarmItemPages == true)
+                {
+                    sections += " data-warm-pages=\"1\"";
+                }
+
                 // Relative URLs so a base-url prefix (e.g. /jellyfin/web/) still resolves.
                 var tags = $"<link rel=\"stylesheet\" href=\"../Tuner/client.css?v={v}\">"
                     + $"<script src=\"..{Marker}?v={v}\"{sections} defer></script>";

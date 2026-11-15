@@ -39,6 +39,8 @@
     // Display ...) opening a page of apps, the ones for this device first. The list itself
     // is fetched from /Tuner/apps when the page opens.
     const GET_APPS_ON = !!(ME && ME.dataset.getApps);
+    // "Load item art on hover" (setting): see warmItemPages().
+    const WARM_ON = !!(ME && ME.dataset.warmPages);
     const APPS_ROUTE = '#/tuner/apps';
     // Request opens INSIDE Fretzflix when it can (Fretzflix review 2026-11-05: the popup felt
     // like leaving the app). It can only when the request site shares a "site" with the
@@ -2333,6 +2335,73 @@
         });
     }
 
+    // Load item art on hover (setting, Home -> Everywhere). WHY (Fretzflix, 2026-11-15): the
+    // big backdrop is the slowest part of opening a movie or show. When the mouse rests on a
+    // poster for a moment, its backdrop is downloaded into the browser's cache, so the item
+    // page opens with the art already there.
+    // The address must match the item page's exactly (size from the screen, quality, the
+    // order of the parameters), and it's built in a part of jellyfin-web we can't call. So
+    // it's learned: each item page's backdrop request is kept as a template (localStorage),
+    // and a hovered item's address is that template with its id and image tag swapped in.
+    // A new screen or a Jellyfin update relearns on the next item page.
+    // Hovering wildly does nothing: it waits for a 150 ms rest, keeps one download at a
+    // time (the newest wins), and does each item once. Mouse only; nothing on touch.
+    function warmItemPages() {
+        if (!WARM_ON || !window.PerformanceObserver) return;
+        const KEY = 'tnr.backdropTemplate';
+        const BACKDROP = /\/Items\/[0-9a-f]{32}\/Images\/Backdrop\/0\?/i;
+        let template = null;
+        try { template = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
+        try {
+            new PerformanceObserver((list) => list.getEntries().forEach((e) => {
+                if (!location.hash.startsWith('#/details') || !BACKDROP.test(e.name) || !/[?&]tag=/i.test(e.name)) return;
+                template = e.name;
+                try { localStorage.setItem(KEY, template); } catch (err) { /* private mode */ }
+            })).observe({ type: 'resource', buffered: true });
+        } catch (e) { return; }
+        const fill = (id, tag) => template.replace(/\/Items\/[0-9a-f]{32}\//i, `/Items/${id}/`)
+            .replace(/([?&]tag=)[^&]*/i, '$1' + encodeURIComponent(tag));
+        // Straight fetch with ApiClient's headers: ApiClient.ajax logs every request.
+        async function itemJson(id) {
+            const headers = { Accept: 'application/json' };
+            if (typeof ApiClient.setRequestHeaders === 'function') ApiClient.setRequestHeaders(headers);
+            const res = await fetch(ApiClient.getUrl(`Users/${ApiClient.getCurrentUserId()}/Items/${id}`), { headers });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        }
+        const done = new Set();
+        let timer = 0, hoverId = '', img = null;
+        async function warm(id) {
+            if (!template || done.has(id) || !window.ApiClient) return;
+            done.add(id);
+            let it;
+            try { it = await itemJson(id); } catch (e) { done.delete(id); return; }
+            if (hoverId !== id) { done.delete(id); return; }   // moved on while it loaded
+            let src = '';
+            if (it.BackdropImageTags && it.BackdropImageTags.length) src = fill(it.BackdropItemId || it.Id, it.BackdropImageTags[0]);
+            else if (it.ParentBackdropItemId && it.ParentBackdropImageTags && it.ParentBackdropImageTags.length) src = fill(it.ParentBackdropItemId, it.ParentBackdropImageTags[0]);
+            if (!src) return;
+            if (img) img.src = '';                               // cancel the previous one
+            img = new Image();
+            img.decoding = 'async';
+            img.src = src;
+        }
+        const cardOf = (el) => (el && el.closest ? el.closest('.card[data-id], .listItem[data-id]') : null);
+        document.addEventListener('pointerover', (e) => {
+            if (e.pointerType !== 'mouse') return;
+            const card = cardOf(e.target);
+            const id = card && card.getAttribute('data-id');
+            if (!id || id === hoverId) return;
+            hoverId = id;
+            clearTimeout(timer);
+            timer = setTimeout(() => warm(id), 150);
+        }, { passive: true });
+        document.addEventListener('pointerout', (e) => {
+            const card = cardOf(e.target);
+            if (card && !card.contains(e.relatedTarget)) { hoverId = ''; clearTimeout(timer); }
+        }, { passive: true });
+    }
+
     // A floating "back to top" button on long pages, ours and Jellyfin's alike: it shows
     // once you're two screens down and hides again near the top.
     function injectBackToTop() {
@@ -2575,6 +2644,7 @@
         window.addEventListener('popstate', route);
         window.addEventListener('hashchange', route);
         injectBackToTop();
+        warmItemPages();
         route();
     }
     boot();
