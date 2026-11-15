@@ -28,6 +28,9 @@
     let target = 0;        // where the wheel wants it
     let running = false;
     let lastTime = 0;
+    let hoverBack = 0;
+    // Frame gaps (ms) of recent glides, for TunerSmooth.report() on the person's own screen.
+    const gaps = [];
 
     const root = document.documentElement;
     const reducedQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
@@ -85,15 +88,27 @@
         start();
     }
 
+    // While gliding the page ignores the mouse (html.tnr-gliding, tuner.css). WHY (1.0.9.2):
+    // every poster sliding under a resting pointer counted as hovered, fading its glow and
+    // Jellyfin's hover buttons in and out, dozens of redraws per glide, which Colton saw as
+    // jitter. Hover comes back a moment after the page settles.
+    function gliding(on) {
+        clearTimeout(hoverBack);
+        if (on) root.classList.add('tnr-gliding');
+        else hoverBack = setTimeout(() => root.classList.remove('tnr-gliding'), 120);
+    }
+
     function start() {
         if (running) return;
         running = true;
+        gliding(true);
         lastTime = performance.now();
         requestAnimationFrame(frame);
     }
 
     function stop() {
         running = false;
+        gliding(false);
         current = target = window.scrollY;
     }
 
@@ -102,6 +117,7 @@
         // Something else moved the page since our last frame (scrollbar, keys, Jellyfin
         // restoring a position): it wins.
         if (Math.abs(window.scrollY - current) > 2) { stop(); return; }
+        if (now > lastTime) { gaps.push(now - lastTime); if (gaps.length > 1200) gaps.splice(0, 600); }
         const dt = Math.min(0.1, (now - lastTime) / 1000);
         lastTime = now;
         target = clamp(target); // the page may have grown or shrunk (rows loading)
@@ -109,7 +125,7 @@
         current += (target - current) * (1 - Math.exp(-api.lerp * 60 * dt));
         if (Math.abs(target - current) < 0.5) current = target;
         window.scrollTo({ top: current, behavior: 'instant' });
-        if (current === target) { running = false; return; }
+        if (current === target) { running = false; gliding(false); return; }
         requestAnimationFrame(frame);
     }
 
@@ -121,6 +137,16 @@
         start();
     };
     api.stop = stop;
+    // In the console: TunerSmooth.report() after some scrolling. Slow frames are the jitter.
+    api.report = function () {
+        const g = gaps.filter((x, i) => i > 0).sort((x, y) => x - y);
+        if (!g.length) return 'No glides yet: scroll with the wheel, then run this again.';
+        const med = g[g.length >> 1], q = (p) => +g[Math.min(g.length - 1, Math.floor(g.length * p))].toFixed(1);
+        const r = { frames: g.length, refreshHz: Math.round(1000 / med), medianMs: +med.toFixed(1), p95Ms: q(0.95),
+            worstMs: q(1), slowFrames: g.filter((x) => x > med * 1.5).length, lerp: api.lerp, reduceMotionIgnored: IGNORE_REDUCED };
+        gaps.length = 0;
+        return JSON.stringify(r);
+    };
 
     window.addEventListener('wheel', onWheel, { passive: false });
     // A new page starts wherever Jellyfin puts it; don't carry a glide across.

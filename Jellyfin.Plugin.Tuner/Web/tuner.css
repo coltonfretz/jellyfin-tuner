@@ -563,3 +563,7 @@ body.tnr-music-on[data-tnr-page="radio"] .MuiAppBar-root .MuiStack-root > a[href
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tnr-netname.long { font-size: 1.05em; }
 .card.tnr-net:hover .cardImageContainer { filter: brightness(1.15); }
+
+/* smooth.js: the page ignores the pointer while it glides, so posters passing under a resting
+   mouse don't each light up and fade (1.0.9.2). The top bar and menus stay clickable. */
+html.tnr-gliding .mainAnimatedPages { pointer-events: none; }
