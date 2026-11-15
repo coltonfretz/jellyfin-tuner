@@ -181,7 +181,7 @@ a.tnrp-btn { text-decoration: none; }
     <span class="material-icons" aria-hidden="true">forum</span>
     <div class="tnrp-title"><b></b><small></small></div>
     <button type="button" class="tnrp-icon tnrp-sharebtn" title="Share a YouTube or Twitch video" aria-label="Share a YouTube or Twitch video"><span class="material-icons">add_to_queue</span></button>
-    <button type="button" class="tnrp-icon tnrp-syncmenu" title="SyncPlay: resume, settings, leave" aria-label="SyncPlay menu"><span class="material-icons">groups</span></button>
+    <button type="button" class="tnrp-icon tnrp-syncmenu" title="Watch party: resume, settings, leave" aria-label="Watch party menu"><span class="material-icons">groups</span></button>
     <button type="button" class="tnrp-icon tnrp-x" title="Shrink the chat to a button in the corner" aria-label="Shrink chat"><span class="material-icons">close</span></button>
   </div>
   <button type="button" class="tnrp-sync sp"><span class="material-icons" aria-hidden="true">play_circle</span><span>Back to the group's video</span></button>
@@ -267,7 +267,7 @@ a.tnrp-btn { text-decoration: none; }
         // Let the popup have the keyboard (Esc closes it), not the chat button just pressed.
         if (e && e.currentTarget) e.currentTarget.blur();
         if (b) { b.click(); moveMenuToChat(); return; }
-        sysLine("Couldn't find Jellyfin's SyncPlay button. It's the group icon at the top of the page.");
+        sysLine("Couldn't find the Watch party button. It's the group icon at the top of the page.");
     }
 
     // The popup Jellyfin opens. It closes when the dimmed area around it is clicked, so Esc
@@ -377,7 +377,7 @@ a.tnrp-btn { text-decoration: none; }
         titleB.textContent = P.name || 'Watch together';
         titleSmall.textContent = P.people.join(', ');
         titleSmall.title = P.people.join(', ');
-        if (!list.children.length) list.innerHTML = '<div class="tnrp-empty">Say hi. Everyone in this SyncPlay group sees what you write here.</div>';
+        if (!list.children.length) list.innerHTML = '<div class="tnrp-empty">Say hi. Everyone in this watch party sees what you write here.</div>';
     }
 
     function addMessages(msgs, history) {

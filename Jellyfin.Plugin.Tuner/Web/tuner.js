@@ -2651,6 +2651,39 @@
         });
     }
 
+    // Plain names for two things a first-time viewer couldn't place (review 2026-11-15):
+    //   - Jellyfin's "SyncPlay" (watching in step with friends) reads as "Watch party".
+    //     Not "Watch together": that's already the name of party.js's shared-link player
+    //     inside a group.
+    //   - Jellyfin Enhanced's account-menu entry (its settings panel) reads as "Extras".
+    // jellyfin-web's strings are bundled, not fetched, so this renames them where they show:
+    // the top bar button's tooltip and label, the SyncPlay popup and its dialogs, toasts.
+    // Only those places: the admin dashboard keeps Jellyfin's real names.
+    const PLAIN_SCOPES = '.MuiTooltip-tooltip, .MuiPopover-paper, .syncPlayGroupMenu, .actionSheet, .toast, .dialog';
+    function plainSyncPlay(t) {
+        return t.replace(/^SyncPlay Settings/, 'Watch party settings')
+            .replace(/^SyncPlay\b/, 'Watch party')
+            .replace(/\bSyncPlay\b/g, 'watch party');
+    }
+    function relabelPlainNames() {
+        if (location.hash.startsWith('#/dashboard')) return;
+        document.querySelectorAll('[title*="SyncPlay"], [aria-label*="SyncPlay"]').forEach((el) => {
+            if (el.closest('.tnrp-panel')) return; // party.js's own, already plain
+            if (el.title) el.title = plainSyncPlay(el.title);
+            const al = el.getAttribute('aria-label');
+            if (al) el.setAttribute('aria-label', plainSyncPlay(al));
+        });
+        document.querySelectorAll(PLAIN_SCOPES).forEach((scope) => {
+            if (!scope.textContent.includes('SyncPlay')) return;
+            const w = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+            for (let n = w.nextNode(); n; n = w.nextNode()) {
+                if (n.nodeValue.includes('SyncPlay')) n.nodeValue = plainSyncPlay(n.nodeValue);
+            }
+        });
+        const je = document.querySelector('#jellyfinEnhancedUserMenuLink .MuiListItemText-primary');
+        if (je && je.textContent !== 'Extras') je.textContent = 'Extras';
+    }
+
     // =====================================================================
     // Boot
     // =====================================================================
@@ -2672,7 +2705,7 @@
         let pending = false;
         new MutationObserver(() => {
             if (pending) return; pending = true;
-            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectSections(); styleNetworks(); injectSearchRequest(); injectAppsRow(); });
+            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); relabelPlainNames(); catchMusicRoute(); hideStrayPages(); injectSections(); styleNetworks(); injectSearchRequest(); injectAppsRow(); });
         }).observe(document.body, { childList: true, subtree: true });
         // The tab title lives in <head>, which the body observer doesn't see.
         new MutationObserver(keepOurTitle).observe(document.head, { childList: true, subtree: true, characterData: true });
