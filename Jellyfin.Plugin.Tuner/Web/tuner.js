@@ -691,6 +691,7 @@
         idx: 0, playingIdx: -1, lastIdx: -1, hls: null, usingRelay: false,
         digits: '', digitTimer: null, tuneTimer: null, bannerTimer: null, guideTimer: null,
         hlsLoading: null, antenna: null, live: null, liveTimer: null,
+        opening: false,         // Surf just opened: the channel card is up until the picture plays
     };
 
     const groupColor = (g) => GROUP_COLORS[g] || '#888780';
@@ -785,6 +786,7 @@
 
     function tvSelect(i, immediate) {
         if (i < 0 || i >= T.channels.length) return;
+        if (T.opening) endOpening(false);   // a flip during the card: cut to normal surfing
         if (T.playingIdx >= 0 && i !== T.idx) T.lastIdx = T.playingIdx;
         T.idx = i;
         showBanner();
@@ -883,6 +885,9 @@
     function setStatus(msg) {
         const el = $('.tnr-tv-status');
         if (!el) return;
+        // The channel card already says it's coming; anything else (an error) replaces it.
+        if (T.opening && msg === 'Tuning…') msg = '';
+        else if (T.opening && msg) endOpening(false);
         el.textContent = msg || '';
         el.classList.toggle('show', !!msg);
     }
@@ -913,6 +918,32 @@
 
     // ---------- rendering ----------
 
+    // ---------- opening Surf: the channel card ----------
+    // WHY (Fretzflix, 2026-11-15): opening Surf showed a finished page with a black screen
+    // saying "Tuning…" for about a second, which felt off next to the pages that now fade
+    // in. Opening shows the channel's card instead (number, name, what's on) and crossfades
+    // into the picture once it plays. Only on opening: flips stay quick and raw (static,
+    // "Tuning…", banner), which suits surfing; a flip while the card is up cuts it at once.
+    function startOpening() {
+        const card = $('.tnr-tune-card'), screen = $('.tnr-screen'), ch = T.channels[T.idx];
+        if (!card || !screen || !ch) return;
+        const color = groupColor(ch.group), { now } = nowNext(ch);
+        card.innerHTML = `<div class="tnr-tc-top"><span class="tnr-tc-num" style="color:${esc(color)}">${esc(ch.number)}</span>${ch.hasLogo ? `<img class="tnr-tc-logo" src="${esc(tvLogo(ch))}" alt="">` : ''}</div>
+            <div class="tnr-tc-name">${esc(ch.name)}</div><div class="tnr-tc-group">${esc(ch.group || '')}</div>
+            <div class="tnr-tc-now">${esc(now ? now.title : 'Live')}</div>
+            <div class="tnr-tc-dots" aria-hidden="true"><span></span><span></span><span></span></div>`;
+        card.style.setProperty('--tnr-ch', color);
+        T.opening = true;
+        screen.classList.add('tnr-opening');
+    }
+    function endOpening(fade) {
+        T.opening = false;
+        const screen = $('.tnr-screen'), card = $('.tnr-tune-card');
+        if (!screen) return;
+        if (!fade && card) { card.style.transition = 'none'; screen.classList.remove('tnr-opening'); void card.offsetWidth; card.style.transition = ''; }
+        else screen.classList.remove('tnr-opening');
+    }
+
     function showBanner() {
         const b = $('.tnr-banner'); if (!b) return;
         b.classList.add('show');
@@ -937,6 +968,7 @@
                 <div class="tnr-screen" tabindex="-1">
                     <video class="tnr-video" playsinline></video>
                     <div class="tnr-tv-status"></div>
+                    <div class="tnr-tune-card" aria-hidden="true"></div>
                     <button class="tnr-resume" aria-label="Resume" title="Resume (space)"><span class="material-icons">play_arrow</span></button>
                     <div class="tnr-tv-digits"></div>
                     <div class="tnr-banner show">
@@ -968,7 +1000,7 @@
 
         const v = $('.tnr-video', root);
         v.volume = load('tvvol', 1); v.muted = load('tvmute', false);
-        v.addEventListener('playing', () => { setStatus(''); showBanner(); });
+        v.addEventListener('playing', () => { if (T.opening) endOpening(true); setStatus(''); showBanner(); });
         // 'waiting' can fire after 'playing' while the first segments settle; once the
         // picture is actually advancing, the "Tuning…" label has no business being up.
         let lastT = 0;
@@ -1001,7 +1033,9 @@
         $('.tnr-static', root).addEventListener('click', (e) => { const val = !load('static', true); store('static', val); e.currentTarget.textContent = val ? 'Static on' : 'Static off'; });
         renderMuteIcon();
         renderTvInfo();
+        T.opening = false;
         tvSelect(T.idx, true);
+        startOpening();
     }
 
     // Back to live after a pause: hls.js knows the live point; native HLS (iPhone) uses
@@ -1046,6 +1080,8 @@
         if (logo) logo.innerHTML = ch.hasLogo ? `<img src="${esc(tvLogo(ch))}" alt="">` : '';
         set('.tnr-banner-name', `${ch.name} · ${ch.group}`);
         set('.tnr-banner-now', now ? now.title : 'Live');
+        // The opening card is drawn before the guide arrives; fill in what's on when it does.
+        if (T.opening) set('.tnr-tc-now', now ? now.title : 'Live');
         const fill = $('.tnr-bar-fill');
         if (fill) {
             const pct = now ? Math.min(100, Math.max(0, ((Date.now() - new Date(now.start)) / (new Date(now.end) - new Date(now.start))) * 100)) : 0;
