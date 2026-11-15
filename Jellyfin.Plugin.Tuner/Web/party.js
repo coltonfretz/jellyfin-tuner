@@ -45,8 +45,19 @@
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const signedIn = () => !!(window.ApiClient && ApiClient.getCurrentUserId && ApiClient.getCurrentUserId());
-    function api(path, opts) {
-        return ApiClient.ajax(Object.assign({ type: 'GET', url: ApiClient.getUrl(path), dataType: 'json' }, opts || {}));
+    // fetch with ApiClient's own headers rather than ApiClient.ajax. WHY (1.0.9.3): ajax logs
+    // "Requesting url without automatic networking: ..." for every request in the web app,
+    // and the long poll below makes one after every message, so the console filled with it.
+    async function api(path, opts) {
+        opts = opts || {};
+        const headers = { Accept: 'application/json' };
+        if (typeof ApiClient.setRequestHeaders === 'function') ApiClient.setRequestHeaders(headers);
+        else if (ApiClient.accessToken && ApiClient.accessToken()) headers.Authorization = `MediaBrowser Token="${ApiClient.accessToken()}"`;
+        if (opts.contentType) headers['Content-Type'] = opts.contentType;
+        const res = await fetch(ApiClient.getUrl(path), { method: opts.type || 'GET', headers, body: opts.data });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        return text ? JSON.parse(text) : null;
     }
 
     // Open/minimized/closed is remembered per group for this browser tab.

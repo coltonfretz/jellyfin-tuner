@@ -21,9 +21,12 @@
     'use strict';
     if (window.TunerSmooth) return;
 
-    // Lenis' default "lerp: 0.1": each 60 Hz frame covers 10% of what's left.
-    // Lower = floatier. Try TunerSmooth.lerp = 0.07 in the console to feel the difference.
-    const api = { lerp: 0.1, wheelMultiplier: 1, enabled: true };
+    // Lenis' default is "lerp: 0.1" (each 60 Hz frame covers 10% of what's left); lower is
+    // floatier. Try other values with TunerSmooth.lerp = 0.1 in the console.
+    // 0.07 since 1.0.9.2: Colton tried 0.1/0.08/0.07 on his laptop (Intel UHD 620, ~10% late
+    // frames on the home page) and 0.07 "feels like sliding, not ticking": a late frame
+    // skips fewer pixels.
+    const api = { lerp: 0.07, wheelMultiplier: 1, enabled: true };
     let current = 0;       // where we last put the page
     let target = 0;        // where the wheel wants it
     let running = false;
