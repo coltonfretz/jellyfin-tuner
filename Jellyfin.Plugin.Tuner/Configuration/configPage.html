@@ -146,10 +146,14 @@
                             <span>Open a simpler Music page from the Music links</span>
                         </label>
                     </div>
-                    <div class="fieldDescription">Search with genre tiles, a Catalog of playlists, decades and A to Z, Now Playing, and Radio, as tabs. Radio moves out of the top bar into it. Jellyfin's own music page is one click away under Classic view. Works in the browser, desktop and phone apps, not the TV apps.</div>
+                    <div class="fieldDescription">Search with genre tiles, a Catalog of playlists, decades and A to Z, Now Playing, and Radio, as tabs. Radio moves out of the top bar into it. Works in the browser, desktop and phone apps, not the TV apps.</div>
                     <div class="inputContainer">
                         <input is="emby-input" type="number" id="MusicMinSongs" label="Fewest songs to count as an album" min="1" max="50" />
                         <div class="fieldDescription">Anything shorter is treated as a single and left off the album shelves. It still shows up in Search and on the artist's page.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="password" id="SongRequestWebhook" label="Song requests: Discord webhook" autocomplete="off" />
+                        <div class="fieldDescription" id="tnrHookState">Set: Search gets a "Don't see a song? Request it" box for Spotify and YouTube links, posted to this Discord channel. Only the server uses it.</div>
                     </div>
 
                     <h2>TV section</h2>
@@ -291,6 +295,10 @@
                         page.querySelector('#tnrKeyState').textContent = config.DispatcharrApiKey
                             ? "A key is saved. Paste a new one only to replace it. Users' browsers never get it."
                             : "Not set: Surf TV's free channels stay off. Users' browsers never get it.";
+                        page.querySelector('#SongRequestWebhook').value = '';
+                        page.querySelector('#tnrHookState').textContent = config.SongRequestWebhook
+                            ? 'A webhook is saved: the Request it box is on. Paste a new one only to replace it; type off to remove it.'
+                            : 'Not set: no Request it box. Paste a Discord webhook URL to turn it on.';
                         page.querySelector('#DisableInjection').checked = !!config.DisableInjection;
                         page.querySelector('#RotateLatestRows').checked = config.RotateLatestRows !== false;
                         page.querySelector('#MixMusicArtists').checked = config.MixMusicArtists !== false;
@@ -316,6 +324,9 @@
                         text.forEach(function (k) { config[k] = page.querySelector('#' + k).value.trim(); });
                         var key = page.querySelector('#DispatcharrApiKey').value.trim();
                         if (key) config.DispatcharrApiKey = key;
+                        var hook = page.querySelector('#SongRequestWebhook').value.trim();
+                        if (hook.toLowerCase() === 'off') config.SongRequestWebhook = '';
+                        else if (hook) config.SongRequestWebhook = hook;
                         config.DisableInjection = page.querySelector('#DisableInjection').checked;
                         config.RotateLatestRows = page.querySelector('#RotateLatestRows').checked;
                         config.MixMusicArtists = page.querySelector('#MixMusicArtists').checked;

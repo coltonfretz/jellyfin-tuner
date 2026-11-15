@@ -482,6 +482,150 @@ public class TunerController : ControllerBase
         }
     }
 
+    // ---- Song requests (Music page: "Don't see a song? Request it") ----
+
+    // Only links to a song, album, artist or playlist on these get through: anything else is
+    // turned away before Discord sees it, so the channel can't be used to post arbitrary links.
+    private static readonly HashSet<string> SpotifyHosts = new(StringComparer.OrdinalIgnoreCase) { "open.spotify.com", "play.spotify.com" };
+    private static readonly HashSet<string> YouTubeHosts = new(StringComparer.OrdinalIgnoreCase) { "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be" };
+    private static readonly System.Text.RegularExpressions.Regex IdRx = new("^[A-Za-z0-9_-]{6,64}$");
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<DateTime>> RequestTimes = new();
+    private const int RequestsPerHour = 10;
+
+    public sealed class SongRequestBody
+    {
+        public string? Url { get; set; }
+    }
+
+    [HttpPost("music/request")]
+    [Authorize]
+    public async Task<ActionResult> SongRequest([FromBody] SongRequestBody body, CancellationToken ct)
+    {
+        var hook = Plugin.Instance?.Configuration.SongRequestWebhook?.Trim() ?? string.Empty;
+        if (!Uri.TryCreate(hook, UriKind.Absolute, out var hookUri) || hookUri.Scheme != Uri.UriSchemeHttps
+            || !(hookUri.Host.Equals("discord.com", StringComparison.OrdinalIgnoreCase) || hookUri.Host.Equals("discordapp.com", StringComparison.OrdinalIgnoreCase))
+            || !hookUri.AbsolutePath.StartsWith("/api/webhooks/", StringComparison.Ordinal))
+        {
+            return NotFound(new { message = "Song requests aren't set up on this server." });
+        }
+
+        var link = ParseRequestLink(body?.Url);
+        if (link is null)
+        {
+            return BadRequest(new { message = "That isn't a Spotify or YouTube link to a song, album, artist or playlist." });
+        }
+
+        var userId = User.FindFirst("Jellyfin-UserId")?.Value ?? "unknown";
+        var who = User.Identity?.Name ?? "Someone";
+        var now = DateTime.UtcNow;
+        var times = RequestTimes.GetOrAdd(userId, _ => new List<DateTime>());
+        lock (times)
+        {
+            times.RemoveAll(t => now - t > TimeSpan.FromHours(1));
+            if (times.Count >= RequestsPerHour)
+            {
+                return StatusCode(StatusCodes.Status429TooManyRequests, new { message = "That's a lot of requests for one hour. Try again later." });
+            }
+
+            times.Add(now);
+        }
+
+        // allowed_mentions empty: a username like "@everyone" can't ping the channel.
+        var payload = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            content = $"Song request from {who.Replace("`", "'", StringComparison.Ordinal)} ({link.Value.Kind}): {link.Value.Url}",
+            allowed_mentions = new { parse = Array.Empty<string>() },
+        });
+        try
+        {
+            using var content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+            using var resp = await _http.CreateClient(PluginServiceRegistrator.ApiClient).PostAsync(hookUri, content, ct).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Tuner: Discord refused a song request ({Status})", (int)resp.StatusCode);
+                return StatusCode(StatusCodes.Status502BadGateway, new { message = "Couldn't send the request. Try again in a bit." });
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogWarning(ex, "Tuner: song request didn't reach Discord");
+            return StatusCode(StatusCodes.Status502BadGateway, new { message = "Couldn't send the request. Try again in a bit." });
+        }
+
+        return Ok(new { message = "Requested. Thanks!", url = link.Value.Url, kind = link.Value.Kind });
+    }
+
+    // A pasted link, tidied to its plain form (tracking parameters like ?si= dropped), or null.
+    internal static (string Url, string Kind)? ParseRequestLink(string? raw)
+    {
+        raw = raw?.Trim();
+        if (string.IsNullOrEmpty(raw) || raw.Length > 500)
+        {
+            return null;
+        }
+
+        if (!raw.Contains("://", StringComparison.Ordinal))
+        {
+            raw = "https://" + raw;
+        }
+
+        if (!Uri.TryCreate(raw, UriKind.Absolute, out var u) || (u.Scheme != Uri.UriSchemeHttps && u.Scheme != Uri.UriSchemeHttp))
+        {
+            return null;
+        }
+
+        var parts = u.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (SpotifyHosts.Contains(u.Host))
+        {
+            // open.spotify.com/track/ID, also /intl-xx/track/ID
+            var i = parts.Length > 0 && parts[0].StartsWith("intl-", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+            if (parts.Length >= i + 2 && parts[i] is "track" or "album" or "artist" or "playlist" && IdRx.IsMatch(parts[i + 1]))
+            {
+                var kind = parts[i] == "track" ? "song" : parts[i];
+                return ($"https://open.spotify.com/{parts[i]}/{parts[i + 1]}", "Spotify " + kind);
+            }
+
+            return null;
+        }
+
+        if (YouTubeHosts.Contains(u.Host))
+        {
+            var q = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(u.Query);
+            string? video = null;
+            if (u.Host.Equals("youtu.be", StringComparison.OrdinalIgnoreCase) && parts.Length >= 1)
+            {
+                video = parts[0];
+            }
+            else if (parts.Length >= 2 && parts[0] is "shorts" or "live")
+            {
+                video = parts[1];
+            }
+            else if (parts.Length >= 1 && parts[0] == "watch" && q.TryGetValue("v", out var v))
+            {
+                video = v.ToString();
+            }
+
+            if (video is not null && IdRx.IsMatch(video))
+            {
+                return ($"https://www.youtube.com/watch?v={video}", "YouTube video");
+            }
+
+            if (parts.Length >= 1 && parts[0] is "playlist" or "watch" && q.TryGetValue("list", out var list) && IdRx.IsMatch(list.ToString()))
+            {
+                return ($"https://www.youtube.com/playlist?list={list}", "YouTube playlist");
+            }
+
+            if (parts.Length >= 2 && parts[0] == "channel" && IdRx.IsMatch(parts[1]))
+            {
+                return ($"https://www.youtube.com/channel/{parts[1]}", "YouTube channel");
+            }
+
+            return null;
+        }
+
+        return null;
+    }
+
     // A station or channel picture (LogoCache): a day in the browser, they rarely change.
     private ActionResult Logo((byte[] Bytes, string Type)? logo)
     {

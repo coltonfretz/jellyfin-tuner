@@ -32,6 +32,10 @@
     // Fewer songs than this and it's a single, or one track from someone's compilation. Those
     // stay findable (Search, the artist's page, the genre page) but aren't shown as albums.
     const MIN_SONGS = Math.max(1, parseInt(me && me.dataset.minSongs, 10) || 4);
+    // The "Don't see a song? Request it" box: on when the server has a Discord webhook set.
+    const REQUESTS = !!(me && me.dataset.requests === '1');
+    // Checked here for a quick answer; the server checks again and tidies the link.
+    const REQUEST_LINK = /^(https?:\/\/)?((open|play)\.spotify\.com|(www\.|m\.|music\.)?youtube\.com|youtu\.be)\//i;
     const ROUTE = '#/tuner/music';
     const SHELF_MIN = 8;          // a shelf needs this many albums, or it looks broken
     const DECADE_ALONE = 16;      // a decade needs this many to get its own row (see buckets())
@@ -42,6 +46,8 @@
     const INDEX_TTL = 30 * 60 * 1000;
     const NP_POLL_MS = 2000;
     const LETTERS = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const SEARCH_FILTERS = [['all', 'All'], ['artists', 'Artists'], ['albums', 'Albums'], ['songs', 'Songs']];
+    const DICE_MS = 700;          // how long the dice tumbles before the song starts
     // Genre tile colors: the same colors as the Radio dial's genres in the station list this
     // was built with, so a genre looks the same on both pages, and picked for how the genre
     // feels rather than at random (random colors repeated and clashed). Keys are the genre name
@@ -73,7 +79,7 @@
         // shuffle turned on from Jellyfin's own bar shows here too. What jellyfin-web never
         // reports is the shuffled ORDER, so Up next can't list it in order.
         shuffle: false, repeat: 'RepeatNone', npPane: 'next', lyrics: {},
-        searchTimer: null, searchQ: '',
+        searchTimer: null, searchQ: '', searchF: 'all',
         azMode: 'albums',
     };
 
@@ -311,22 +317,13 @@
     const TAB_OF = { search: 'search', genre: 'search', genres: 'search', catalog: 'catalog', shelf: 'catalog', nowplaying: 'nowplaying' };
 
     function tabsHtml(active) {
-        return `<nav class="tnm-tabs" aria-label="Music">${TABS.map((t) => `<a class="tnm-tab${t.tab === active ? ' on' : ''}" href="${t.href}" data-href="${t.href}"${t.tab === active ? ' aria-current="page"' : ''}>${t.label}</a>`).join('')}
-            <span class="tnm-gap"></span><button type="button" class="tnm-classic" data-act="classic" title="Jellyfin's own music page">Classic view</button></nav>`;
+        return `<nav class="tnm-tabs" aria-label="Music">${TABS.map((t) => `<a class="tnm-tab${t.tab === active ? ' on' : ''}" href="${t.href}" data-href="${t.href}"${t.tab === active ? ' aria-current="page"' : ''}>${t.label}</a>`).join('')}</nav>`;
     }
 
-    // "Classic view" sticks until a Music link is clicked again (tuner.js clears it), so going
-    // into an album on Jellyfin's page and pressing Back lands on Jellyfin's page again.
-    const CLASSIC_KEY = 'tuner.music.classic';
-    const classicOn = () => { try { return sessionStorage.getItem(CLASSIC_KEY) === '1'; } catch (e) { return false; } };
-    const classicOff = () => { try { sessionStorage.removeItem(CLASSIC_KEY); } catch (e) { /* ignore */ } };
-    async function openClassic() {
-        try { sessionStorage.setItem(CLASSIC_KEY, '1'); } catch (e) { /* ignore */ }
-        let lib = M.index && M.index.libId;
-        if (!lib) { try { lib = (((await get(`Users/${uid()}/Views`)).Items || []).find((v) => v.CollectionType === 'music') || {}).Id; } catch (e) { /* ignore */ } }
-        // A real hash change on purpose: this one should be handled by Jellyfin's router.
-        location.hash = lib ? `#/music?topParentId=${lib}&collectionType=music` : '#/music';
-    }
+    // "Classic view" (Jellyfin's own music page) was removed 2026-11-14: nobody used it, and
+    // it was a way to get stuck on a page with none of our tabs. tuner.js still asks.
+    const classicOn = () => false;
+    const classicOff = () => {};
 
     async function show(page, hash) {
         // The same address twice (our own call, then tuner.js's address watcher): draw once.
@@ -423,9 +420,92 @@
                 : `<span class="tnm-num">${art(s.AlbumId, s.AlbumPrimaryImageTag, s.Album || s.Name, 'tnm-mini', 80)}</span>`;
             return `<li class="tnm-song" data-act="play-song" data-list="${key}" data-i="${i}" tabindex="0">${num}
                 <span class="tnm-song-text"><span class="tnm-song-name">${esc(s.Name)}</span>${sub ? `<span class="tnm-song-sub">${esc(sub)}</span>` : ''}</span>
-                <span class="tnm-song-time">${time(s.RunTimeTicks)}</span></li>`;
+                <span class="tnm-song-time">${time(s.RunTimeTicks)}</span>${heart(s)}</li>`;
         }).join('')}</ol>`;
     }
+
+    // A heart at the end of every song line: Jellyfin's own favorite flag, so it shows up in
+    // Jellyfin's Favorites and Fretzpod too.
+    function heart(s) {
+        const on = !!(s.UserData && s.UserData.IsFavorite);
+        return `<button type="button" class="tnm-fav${on ? ' on' : ''}" data-act="fav" data-id="${esc(s.Id)}" aria-pressed="${on}" aria-label="${on ? 'Remove from favorites' : 'Add to favorites'}"><span class="material-icons" aria-hidden="true">${on ? 'favorite' : 'favorite_border'}</span></button>`;
+    }
+    async function toggleFav(el) {
+        const on = el.getAttribute('aria-pressed') !== 'true';
+        const paint = (v) => {
+            el.classList.toggle('on', v); el.setAttribute('aria-pressed', v);
+            el.setAttribute('aria-label', v ? 'Remove from favorites' : 'Add to favorites');
+            el.firstElementChild.textContent = v ? 'favorite' : 'favorite_border';
+        };
+        paint(on);   // right away; put back if the server says no
+        try {
+            await ApiClient.ajax({ type: on ? 'POST' : 'DELETE', url: ApiClient.getUrl(`Users/${uid()}/FavoriteItems/${el.dataset.id}`) });
+        } catch (e) { paint(!on); toast('Couldn\'t change favorites'); }
+    }
+
+    // Search page dice: tumbles for a moment, then plays one random song with more random
+    // songs queued after it (so the music doesn't stop after one).
+    async function rollDice(el) {
+        if (el.classList.contains('rolling')) return;
+        el.classList.add('rolling');
+        const [r] = await Promise.all([randomSongs({ Limit: 50 }).catch(() => null), new Promise((ok) => setTimeout(ok, DICE_MS))]);
+        el.classList.remove('rolling');
+        const items = (r && r.Items) || [];
+        if (!items.length) { toast('No songs to pick from'); return; }
+        const s = items[0];
+        toast(`${s.Name}${s.AlbumArtist ? ' · ' + s.AlbumArtist : ''}`);
+        return playIds(songsOf(r), 0);
+    }
+
+    function requestBoxHtml() {
+        return `<form class="tnm-request" novalidate><label for="tnm-req-url">Don't see a song? Request it</label>
+            <div class="tnm-request-row"><input id="tnm-req-url" type="url" inputmode="url" placeholder="Paste a Spotify or YouTube link" autocomplete="off" spellcheck="false">
+            <button type="submit" class="tnm-btn tnm-primary"><span class="material-icons" aria-hidden="true">send</span>Request</button></div>
+            <div class="tnm-request-msg" role="status"></div></form>`;
+    }
+    function bindRequestBox(body) {
+        const form = $('.tnm-request', body);
+        if (!form) return;
+        const input = $('input', form), msg = $('.tnm-request-msg', form), btn = $('button', form);
+        const say = (text, bad) => { msg.textContent = text; msg.classList.toggle('bad', !!bad); };
+        input.addEventListener('input', () => say(''));
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = input.value.trim();
+            if (!url) { say('Paste a link first.', true); return; }
+            if (!REQUEST_LINK.test(url)) { say('Only Spotify or YouTube links, please.', true); return; }
+            btn.disabled = true; say('Sending…');
+            try {
+                const r = await ApiClient.ajax({
+                    type: 'POST', url: ApiClient.getUrl('Tuner/music/request'), dataType: 'json',
+                    contentType: 'application/json', data: JSON.stringify({ url }),
+                });
+                input.value = ''; say((r && r.message) || 'Requested. Thanks!');
+            } catch (err) {
+                let m = 'Couldn\'t send the request.';
+                try { const j = err && (err.responseJSON || (err.json && await err.json())); if (j && j.message) m = j.message; } catch (x) { /* keep the plain message */ }
+                say(m, true);
+            } finally { btn.disabled = false; }
+        });
+    }
+
+    // The Playlists row's + card: name it, and it's made empty, ready for songs (Jellyfin's
+    // "Add to playlist" menu lists it from then on).
+    async function newPlaylist() {
+        const name = (window.prompt('Name for the new playlist') || '').trim();
+        if (!name) return;
+        try {
+            const r = await ApiClient.ajax({
+                type: 'POST', url: ApiClient.getUrl('Playlists'), dataType: 'json', contentType: 'application/json',
+                data: JSON.stringify({ Name: name, UserId: uid(), MediaType: 'Audio', Ids: [] }),
+            });
+            M.index = null;   // the index lists playlists; load it fresh
+            if (r && r.Id) nav(`${ROUTE}/playlist?id=${r.Id}`);
+        } catch (e) { toast('Couldn\'t make the playlist'); }
+    }
+    const newPlaylistCard = () => `<button type="button" class="tnm-card tnm-newpl" data-act="new-playlist" title="New playlist">
+            <div class="tnm-artbox"><div class="tnm-art tnm-noart"><span class="material-icons" aria-hidden="true">add</span></div></div>
+            <div class="tnm-card-title">New playlist</div><div class="tnm-card-sub">&nbsp;</div></button>`;
 
     function header(opts) {
         return `<header class="tnm-head">${opts.art || ''}<div class="tnm-head-text">
@@ -450,9 +530,12 @@
             return `<a class="tnm-genre" href="${href}" data-href="${href}" style="background:${g.color}"><span>${esc(g.name)}</span>
                 ${a && a.tag ? `<img src="${esc(imgUrl(a.id, a.tag, 200))}" alt="" loading="lazy">` : ''}</a>`;
         };
-        body.innerHTML = `<div class="tnm-searchbox"><span class="material-icons" aria-hidden="true">search</span>
+        body.innerHTML = `<div class="tnm-searchrow"><div class="tnm-searchbox"><span class="material-icons" aria-hidden="true">search</span>
                 <input type="search" class="tnm-search" placeholder="Artists, albums, songs" aria-label="Search music" value="${esc(M.searchQ)}" autocomplete="off"></div>
+                <button type="button" class="tnm-dice" data-act="dice" title="Play a random song" aria-label="Play a random song"><span class="material-icons" aria-hidden="true">casino</span></button></div>
+            <div class="tnm-filters" role="group" aria-label="Show">${SEARCH_FILTERS.map(([k, label]) => `<button type="button" data-act="sfilter" data-f="${k}" class="${M.searchF === k ? 'on' : ''}" aria-pressed="${M.searchF === k}">${label}</button>`).join('')}</div>
             <div class="tnm-results"></div>
+            ${REQUESTS ? requestBoxHtml() : ''}
             <div class="tnm-browse"><h2 class="tnm-h2">Browse genres</h2><div class="tnm-genres">
                 ${big.map(tile).join('')}
                 ${small.length ? `<a class="tnm-genre tnm-genre-more" href="${ROUTE}/genres" data-href="${ROUTE}/genres"><span>More genres</span><small>${esc(small.map((g) => g.name).join(', '))}</small></a>` : ''}
@@ -460,6 +543,7 @@
         const input = $('.tnm-search', body);
         input.addEventListener('input', () => { clearTimeout(M.searchTimer); M.searchTimer = setTimeout(() => runSearch(body, idx, input.value), 200); });
         input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { input.value = ''; runSearch(body, idx, ''); } });
+        if (REQUESTS) bindRequestBox(body);
         if (M.searchQ) runSearch(body, idx, M.searchQ);
         // Desktop: ready to type. Touch screens: don't pop the keyboard over the tiles.
         if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => input.focus({ preventScroll: true }), 0);
@@ -469,8 +553,11 @@
         M.searchQ = q;
         const out = $('.tnm-results', body), browse = $('.tnm-browse', body);
         const f = fold(q.trim());
+        const chips = $('.tnm-filters', body);
+        if (chips) chips.hidden = !f;
         if (!f) { out.innerHTML = ''; browse.hidden = false; return; }
         browse.hidden = true;
+        const want = (k) => M.searchF === 'all' || M.searchF === k;
         // Artists and albums from the index (instant); songs from the server.
         const artists = idx.artists.filter((x) => fold(x.name).includes(f)).slice(0, 18);
         const albums = idx.all.filter((a) => fold(a.name).includes(f) || fold(a.artist).includes(f))
@@ -478,27 +565,40 @@
         const draw = (songs) => {
             if (M.searchQ !== q) return;
             const parts = [];
-            if (artists.length) parts.push(shelf('Artists', artists.map(artistCard).join('')));
-            if (albums.length) parts.push(shelf('Albums', albums.map((a) => albumCard(a)).join('')));
-            if (songs && songs.length) parts.push(`<section class="tnm-shelf"><h2 class="tnm-h2">Songs</h2>${songList('search', songs)}</section>`);
+            if (artists.length && want('artists')) parts.push(shelf('Artists', artists.map(artistCard).join('')));
+            if (albums.length && want('albums')) parts.push(shelf('Albums', albums.map((a) => albumCard(a)).join('')));
+            if (songs && songs.length && want('songs')) parts.push(`<section class="tnm-shelf"><h2 class="tnm-h2">Songs</h2>${songList('search', songs)}</section>`);
             if (!parts.length) parts.push(songs ? `<div class="tnm-empty">Nothing matches "${esc(q)}".</div>` : '');
             out.innerHTML = parts.join('');
         };
         draw(null);
         try {
-            const r = await get(`Users/${uid()}/Items`, { IncludeItemTypes: 'Audio', Recursive: true, SearchTerm: q.trim(), Limit: 30 });
+            const r = await get(`Users/${uid()}/Items`, { IncludeItemTypes: 'Audio', Recursive: true, SearchTerm: q.trim(), Limit: M.searchF === 'songs' ? 100 : 30 });
             draw(r.Items || []);
         } catch (e) { draw([]); }
     }
 
     VIEWS.genres = async (body, idx) => {
         // A dark card back to all the genres, matching the "More genres" card that led here.
-        body.innerHTML = `<h1 class="tnm-h1">More genres</h1><div class="tnm-genres">
-            <a class="tnm-genre tnm-genre-more" href="${ROUTE}/search" data-href="${ROUTE}/search"><span><span class="material-icons" aria-hidden="true">arrow_back</span>All genres</span></a>
+        // A back button and a filter box up top: the list runs long, and the "All genres"
+        // card that used to be the only way back sat among the tiles.
+        body.innerHTML = `<div class="tnm-pagehead"><a class="tnm-back" href="${ROUTE}/search" data-href="${ROUTE}/search" aria-label="Back to all genres"><span class="material-icons" aria-hidden="true">arrow_back</span></a>
+                <h1 class="tnm-h1">More genres</h1></div>
+            <div class="tnm-searchbox"><span class="material-icons" aria-hidden="true">search</span>
+                <input type="search" class="tnm-search tnm-genre-filter" placeholder="Find a genre" aria-label="Find a genre" autocomplete="off"></div>
+            <div class="tnm-genres">
             ${idx.smallGenres.map((g) => {
                 const href = `${ROUTE}/genre?name=${encodeURIComponent(g.name)}`;
-                return `<a class="tnm-genre" href="${href}" data-href="${href}" style="background:${g.color}"><span>${esc(g.name)}</span></a>`;
-            }).join('')}</div>`;
+                return `<a class="tnm-genre" href="${href}" data-href="${href}" data-name="${esc(fold(g.name))}" style="background:${g.color}"><span>${esc(g.name)}</span></a>`;
+            }).join('')}</div><div class="tnm-empty tnm-genre-none" hidden>No genre by that name.</div>`;
+        const input = $('.tnm-genre-filter', body);
+        input.addEventListener('input', () => {
+            const f = fold(input.value.trim());
+            let any = false;
+            body.querySelectorAll('.tnm-genres .tnm-genre').forEach((t) => { const on = !f || t.dataset.name.includes(f); t.hidden = !on; any = any || on; });
+            $('.tnm-genre-none', body).hidden = any;
+        });
+        if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => input.focus({ preventScroll: true }), 0);
     };
 
     // A genre: its albums, then songs in it that aren't on those albums (singles, one-offs).
@@ -524,7 +624,7 @@
         const parts = [];
         const spot = spotlightPick(idx, day);
         if (spot) parts.push(spotlightHtml(spot));
-        if (idx.playlists.length) parts.push(shelf('Playlists', idx.playlists.slice(0, ROW_CARDS).map(playlistCard).join(''), { more: idx.playlists.length > ROW_CARDS ? `${ROUTE}/shelf?key=playlists` : '' }));
+        parts.push(shelf('Playlists', newPlaylistCard() + idx.playlists.slice(0, ROW_CARDS).map(playlistCard).join(''), { more: idx.playlists.length > ROW_CARDS ? `${ROUTE}/shelf?key=playlists` : '' }));
         const row = (s) => {
             const albums = shuffle(s.albums, rng(s.key + day));
             return shelf(s.title, albums.slice(0, ROW_CARDS).map((a) => albumCard(a)).join(''), { more: s.albums.length > ROW_CARDS ? `${ROUTE}/shelf?key=${encodeURIComponent(s.key)}` : '' });
@@ -602,6 +702,9 @@
         const year = item.ProductionYear >= 1000 ? item.ProductionYear : null;
         const total = songs.reduce((n, s) => n + (s.RunTimeTicks || 0), 0);
         const artistLink = a.artistIds[0] ? `<a href="${ROUTE}/artist?id=${a.artistIds[0]}" data-href="${ROUTE}/artist?id=${a.artistIds[0]}">${esc(a.artist)}</a>` : esc(a.artist);
+        // The genre is a link to its page, when it's one the Search tab knows.
+        const gName = a.genres[0], gHref = gName && idx.genres.some((g) => g.name === gName) ? `${ROUTE}/genre?name=${encodeURIComponent(gName)}` : '';
+        const genreHtml = gName ? (gHref ? `<a href="${gHref}" data-href="${gHref}">${esc(gName)}</a>` : esc(gName)) : '';
         const discs = new Set(songs.map((s) => s.ParentIndexNumber || 1)).size > 1;
         const others = idx.real.filter((x) => x.id !== id && a.artistIds.length && x.artistIds.includes(a.artistIds[0]))
             .sort((x, y) => (y.year || 0) - (x.year || 0));
@@ -609,12 +712,30 @@
         body.innerHTML = header({
             art: art(id, item.ImageTags && item.ImageTags.Primary, item.Name, 'tnm-head-art', 500),
             kicker: a.real === false ? 'Single' : 'Album', title: item.Name,
-            sub: [artistLink, esc([a.genres[0], year].filter(Boolean).join(' · '))].filter(Boolean).join('<br>')
+            sub: [artistLink, [genreHtml, year ? esc(year) : ''].filter(Boolean).join(' · ')].filter(Boolean).join('<br>')
                 + `<div class="tnm-meta">${esc(plural(songs.length, 'song'))}, ${esc(time(total))}</div>`,
             buttons: button('play-album', 'Play', 'play_arrow', { primary: true, id }) + button('shuffle-album', 'Shuffle', 'shuffle', { id }),
         }) + (discs ? discList(songs, a) : songList('album', songs, { numbers: true, album: a }))
             + (others.length ? shelf(`More by ${a.artist}`, others.map((x) => albumCard(x, x.year || '')).join('')) : '');
+        // Already playing this album (started here earlier, or elsewhere)? Say so.
+        playingAlbum().then((albumId) => { if (current() && albumId === id) markNowPlaying(body, id); });
     };
+
+    // The album page's Play button becomes "Now Playing" (a link to that tab) once the album
+    // is playing, instead of offering to start it over.
+    function markNowPlaying(root, id) {
+        const b = root.querySelector(`.tnm-head .tnm-btn[data-act="play-album"][data-id="${CSS.escape(id)}"]`);
+        if (!b) return;
+        const href = ROUTE + '/nowplaying';
+        b.outerHTML = `<a class="tnm-btn tnm-primary tnm-npbtn" href="${href}" data-href="${href}"><span class="material-icons" aria-hidden="true">equalizer</span>Now Playing</a>`;
+    }
+    async function playingAlbum() {
+        try {
+            const list = await get('Sessions', { deviceId: ApiClient.deviceId() });
+            const s = (list || []).find((x) => x.UserId === uid());
+            return s && s.NowPlayingItem && s.NowPlayingItem.MediaType === 'Audio' ? s.NowPlayingItem.AlbumId : null;
+        } catch (e) { return null; }
+    }
 
     // Albums with more than one disc get a small heading per disc; one list underneath so
     // "play from here" still runs to the end of the album.
@@ -671,7 +792,10 @@
 
     // Now Playing: what Jellyfin's player in this browser is playing, or Tuner's radio.
     VIEWS.nowplaying = async (body) => {
-        body.innerHTML = '<div class="tnm-np"></div>';
+        // Opened from the media bar: an arrow back to the page you were on (Back does the same).
+        const back = M.cameFrom && M.cameFrom !== location.hash
+            ? `<div class="tnm-pagehead"><button type="button" class="tnm-back" data-act="np-back" aria-label="Back"><span class="material-icons" aria-hidden="true">arrow_back</span></button></div>` : '';
+        body.innerHTML = back + '<div class="tnm-np"></div>';
         await pollNp();
         M.npTimer = setInterval(() => { if (!document.hidden) pollNp(); }, NP_POLL_MS);
         M.tickTimer = setInterval(tickNp, 500);
@@ -916,7 +1040,7 @@
     async function runAct(el, e) {
         const d = el.dataset;
         switch (d.act) {
-            case 'play-album': return playAlbum(d.id, false);
+            case 'play-album': await playAlbum(d.id, false); return markNowPlaying(el.closest('.tnm-body') || document, d.id);
             case 'shuffle-album': return playAlbum(d.id, true);
             case 'play-playlist': return playPlaylist(d.id, false);
             case 'shuffle-playlist': return playPlaylist(d.id, true);
@@ -928,6 +1052,7 @@
             case 'np-shuffle': return toggleShuffle();
             case 'np-repeat': return cycleRepeat();
             case 'np-pane': return showPane(d.pane);
+            case 'np-back': M.cameFrom = null; return history.back();
             case 'np':
                 if (d.cmd === 'PlayPause' && M.np) { M.np.pos += M.np.paused ? 0 : (Date.now() - M.np.at) * 1e4; M.np.at = Date.now(); M.np.paused = !M.np.paused; updateNpButtons(); }
                 await command('Playing/' + d.cmd);
@@ -941,6 +1066,12 @@
                 const row = $('.tnm-row', el.closest('.tnm-shelf'));
                 return row && row.scrollBy({ left: Number(d.d) * row.clientWidth * 0.9, behavior: 'smooth' });
             }
+            case 'sfilter': {
+                M.searchF = d.f;
+                el.parentNode.querySelectorAll('button').forEach((b) => { b.classList.toggle('on', b === el); b.setAttribute('aria-pressed', b === el); });
+                const body = el.closest('.tnm-body');
+                return runSearch(body, M.index, M.searchQ);
+            }
             case 'az':
                 M.azMode = d.mode; store('az', d.mode);
                 el.parentNode.querySelectorAll('button').forEach((b) => { b.classList.toggle('on', b === el); b.setAttribute('aria-pressed', b === el); });
@@ -949,7 +1080,9 @@
                 const t = document.getElementById('tnm-l-' + (d.l === '#' ? 'num' : d.l));
                 return t && t.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-            case 'classic': return openClassic();
+            case 'dice': return rollDice(el);
+            case 'fav': return toggleFav(el);
+            case 'new-playlist': return newPlaylist();
         }
     }
 
@@ -961,5 +1094,5 @@
     M.azMode = load('az', 'albums') === 'artists' ? 'artists' : 'albums';
     M.npPane = load('npPane', 'next') === 'lyrics' ? 'lyrics' : 'next';
 
-    window.TunerMusic = { route: ROUTE, show, leave, tabsHtml, bind, classicOn, classicOff };
+    window.TunerMusic = { route: ROUTE, show, leave, tabsHtml, bind, classicOn, classicOff, cameFrom: (h) => { M.cameFrom = h; } };
 })();

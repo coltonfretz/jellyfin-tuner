@@ -23,14 +23,14 @@ Every part is off until you set it up.
 
 **Pages**
 
-- **Radio:** your own internet radio stations on a tuning dial, grouped by genre. Favorites, search, song titles, a mini player and media keys.
+- **Radio:** your own internet radio stations on a tuning dial, grouped by genre. Favorites, search, a dice for a random station, song titles, a mini player and media keys.
 - **Jamendo:** Creative Commons music by genre, with **Keep** to save a track to your library (when the artist allows it).
-- **Surf TV:** flip channels like cable. Free channels from Dispatcharr and antenna channels from an HDHomeRun.
-- **Music (optional):** Search, Catalog, Now Playing (with lyrics) and Radio tabs. Jellyfin's own music page stays under **Classic view**.
+- **Surf TV:** flip channels like cable. Free channels from Dispatcharr and antenna channels from an HDHomeRun. Pausing (or the browser pausing it in a background tab) shows a play button, and coming back picks up live again.
+- **Music (optional):** Search (with All / Artists / Albums / Songs filters and a dice that plays a random song), Catalog (with a **New playlist** card), Now Playing (with lyrics) and Radio tabs. A heart on every song line, genres link to their page, and the song on Jellyfin's media bar opens Now Playing. Optional **Don't see a song? Request it** box: Spotify and YouTube links go to a Discord channel through a webhook only the server knows.
 
 **Sections**
 
-- **TV:** one link with **Surf**, **Guide** and **Classics** tabs (Classics is a TV library you pick).
+- **TV:** one link with **Surf**, **Guide** and **Classics** tabs (Classics is a TV library you pick). Networks show as colored name tiles instead of logos, which most small networks don't have.
 - **Movies:** **Library** and **Classics** tabs for a second movie library.
 - **Request:** a link to your Seerr or Jellyseerr site. Opens inside Jellyfin when both share a site (`requests.example.com` and `example.com`, https), otherwise in a new tab. Searches that find nothing offer **Can't find it? Request it**.
 
@@ -47,6 +47,7 @@ Every part is off until you set it up.
 - Seasonal tiles in My Media (a collection that shows only between two dates).
 - Library tiles get a new picture every few days.
 - The player's controls stay up while the mouse rests on them.
+- A floating **back to top** button on long pages.
 
 **Works in** web-based apps: browsers, Jellyfin Desktop (and the older Jellyfin Media Player), and the official Android and iPhone apps. Native TV apps (Android TV, Roku, Apple TV) draw their own screens and won't show it.
 

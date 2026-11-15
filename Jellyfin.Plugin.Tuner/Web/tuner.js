@@ -372,6 +372,22 @@
     }
     function stepGenre(d) { tuneTo(S.gi + d, 0); }
 
+    // The dice: any station from any genre (Jamendo: any genre), never the one already on.
+    // It tumbles for a moment first, so it feels like a roll rather than a skip.
+    function randomStation() {
+        const dice = $('.tnr-dice');
+        if (dice && dice.classList.contains('rolling')) return;
+        const gs = genresForMode(); if (!gs.length) return;
+        const picks = [];
+        gs.forEach((g, gi) => (S.mode === 'live' ? g.stations : [null]).forEach((_, si) => {
+            if (!(gi === S.gi && si === S.si && S.playing)) picks.push([gi, si]);
+        }));
+        if (!picks.length) return;
+        const [gi, si] = picks[Math.floor(Math.random() * picks.length)];
+        if (dice) dice.classList.add('rolling');
+        setTimeout(() => { if (dice) dice.classList.remove('rolling'); tuneTo(gi, si); }, 600);
+    }
+
     function setMode(m) {
         if (S.mode === m) return;
         S.mode = m; S.gi = 0; S.si = 0;
@@ -420,6 +436,7 @@
             <div class="tnr-head">
                 <h1>Radio</h1>
                 <input class="tnr-search" type="search" placeholder="Search stations" value="${esc(S.search)}" aria-label="Search stations">
+                <button class="tnr-btn tnr-dice" title="Random station (R)" aria-label="Random station"><span class="material-icons" aria-hidden="true">casino</span></button>
                 <button class="tnr-btn tnr-static" title="Tuning sound">${load('static', true) ? 'Static on' : 'Static off'}</button>
             </div>
             ${hasJam ? `<div class="tnr-modes">
@@ -438,6 +455,7 @@
             if (e.key === 'Escape') { e.target.value = ''; S.search = ''; renderList(); e.target.blur(); }
         });
         $('.tnr-static', root).addEventListener('click', (e) => { const v = !load('static', true); store('static', v); e.currentTarget.textContent = v ? 'Static on' : 'Static off'; });
+        $('.tnr-dice', root).addEventListener('click', randomStation);
         root.querySelectorAll('.tnr-mode').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
         $('.tnr-scale', root).addEventListener('click', (e) => {
             // Clicking the scale tunes to the genre under the pointer.
@@ -543,7 +561,7 @@
                         <div class="tnr-tile" style="background-color:${esc(g.color)};${bgImage(t.image)}"></div>
                         <div class="tnr-row-text"><div class="tnr-row-name">${esc(t.name)}</div><div class="tnr-row-sub">${esc(t.artist)}</div></div>
                     </div>`).join('')
-                : `<div class="tnr-empty">Press play to start Jamendo ${esc(g.name)}: Creative Commons music, one track after another, with skip.</div>`;
+                : `<div class="tnr-empty">Press play to begin</div>`;
             return;
         }
 
@@ -917,6 +935,7 @@
                 <div class="tnr-screen" tabindex="-1">
                     <video class="tnr-video" playsinline></video>
                     <div class="tnr-tv-status"></div>
+                    <button class="tnr-resume" aria-label="Resume" title="Resume (space)"><span class="material-icons">play_arrow</span></button>
                     <div class="tnr-tv-digits"></div>
                     <div class="tnr-banner show">
                         <div class="tnr-banner-num"></div>
@@ -955,9 +974,16 @@
         v.addEventListener('emptied', () => { lastT = 0; });
         v.addEventListener('waiting', () => setStatus('Tuning…'));
         v.addEventListener('volumechange', () => { store('tvvol', v.volume); store('tvmute', v.muted); renderMuteIcon(); });
+        // Paused (the space bar, or the browser pausing it in a background tab) showed a
+        // still frame with no way back but knowing to click it. Show a big play button
+        // instead; resuming jumps to the live point, since this is live TV.
+        const resumeBtn = $('.tnr-resume', root);
+        const syncPaused = () => resumeBtn.classList.toggle('show', v.paused && T.playingIdx >= 0 && !!v.currentSrc);
+        v.addEventListener('pause', syncPaused); v.addEventListener('play', syncPaused); v.addEventListener('emptied', syncPaused);
+        resumeBtn.addEventListener('click', (e) => { e.stopPropagation(); tvResume(); });
         const screen = $('.tnr-screen', root);
         screen.addEventListener('mousemove', showBanner);
-        screen.addEventListener('click', (e) => { if (!e.target.closest('button')) { showBanner(); if (v.paused) v.play().catch(() => {}); } });
+        screen.addEventListener('click', (e) => { if (!e.target.closest('button')) { showBanner(); if (v.paused) tvResume(); } });
         // Phones: swipe up/down on the picture to change channel.
         let y0 = null;
         screen.addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; }, { passive: true });
@@ -975,6 +1001,27 @@
         renderTvInfo();
         tvSelect(T.idx, true);
     }
+
+    // Back to live after a pause: hls.js knows the live point; native HLS (iPhone) uses
+    // the end of the seekable range. If the stream went stale meanwhile, tune it again.
+    function tvResume() {
+        const v = $('.tnr-video'); if (!v || T.playingIdx < 0) return;
+        try {
+            if (T.hls && T.hls.liveSyncPosition != null) v.currentTime = T.hls.liveSyncPosition;
+            else if (v.seekable && v.seekable.length) v.currentTime = v.seekable.end(v.seekable.length - 1) - 1;
+        } catch (e) { /* seeking is a nicety; playing from where it stopped still works */ }
+        v.play().catch(() => tvTune(T.playingIdx, T.usingRelay));
+    }
+
+    // Coming back to the browser tab after it paused the video: pick up live again by
+    // itself, but only if it was playing when the tab was left (a pause by hand stays).
+    let tvPlayingWhenHidden = false;
+    document.addEventListener('visibilitychange', () => {
+        const v = $('.tnr-video');
+        if (S.active !== 'tv' || !v) return;
+        if (document.hidden) tvPlayingWhenHidden = !v.paused;
+        else if (tvPlayingWhenHidden && v.paused) tvResume();
+    });
 
     function renderMuteIcon() {
         const v = $('.tnr-video'), b = $('.tnr-mute');
@@ -1003,14 +1050,15 @@
             fill.style.width = `${Math.round(pct)}%`; fill.style.background = color;
             fill.parentElement.style.visibility = now ? 'visible' : 'hidden';
         }
-        set('.tnr-banner-next', next ? `Next at ${fmtTime(next.start)}: ${next.title}` : (now ? `Until ${fmtTime(now.end)}` : 'No guide for this channel'));
+        set('.tnr-banner-next', next ? `Next at ${fmtTime(next.start)}: ${next.title}` : (now ? `Until ${fmtTime(now.end)}` : ''));   // no guide: leave it blank, not a notice
         const screen = $('.tnr-screen'); if (screen) screen.style.setProperty('--tnr-ch', color);
 
-        // Side guide: three channels either side of the current one.
+        // Side guide: three channels either side of the current one, higher numbers on top
+        // so the list moves the way the arrow keys do (Up = channel up = the row above).
         const guide = $('.tnr-guide');
         if (guide) {
             const rows = [];
-            for (let o = -3; o <= 3; o++) {
+            for (let o = 3; o >= -3; o--) {
                 const j = (T.idx + o + T.channels.length) % T.channels.length, c = T.channels[j], nn = nowNext(c);
                 rows.push(`<div class="tnr-grow ${o === 0 ? 'on' : ''}" data-i="${j}">
                     <span class="tnr-gnum" style="color:${esc(groupColor(c.group))}">${c.number}</span>
@@ -1915,7 +1963,7 @@
             fn = {
                 ArrowDown: () => step(1), ArrowUp: () => step(-1),
                 ArrowRight: () => stepGenre(1), ArrowLeft: () => stepGenre(-1),
-                ' ': togglePlay, f: toggleFav, n: () => nextJam(), k: keepTrack,
+                ' ': togglePlay, f: toggleFav, n: () => nextJam(), k: keepTrack, r: randomStation,
                 '/': () => { const s = $('.tnr-search'); if (s) s.focus(); },
             }[e.key];
         } else if (S.active === 'tv') {
@@ -1926,7 +1974,7 @@
                     // Channel up goes to the higher number, like a remote.
                     ArrowUp: () => surf(1), ArrowDown: () => surf(-1), PageUp: () => surf(1), PageDown: () => surf(-1),
                     l: lastChannel, m: () => { if (v) v.muted = !v.muted; }, f: toggleFullscreen,
-                    ' ': () => { if (v) { if (v.paused) v.play().catch(() => {}); else v.pause(); } },
+                    ' ': () => { if (v) { if (v.paused) tvResume(); else v.pause(); } },
                     i: showBanner, Enter: showBanner,
                 }[e.key];
             }
@@ -2229,6 +2277,77 @@
         go('music')();
     }, true);
 
+    // The media bar along the bottom: clicking the song on it opened Jellyfin's full-screen
+    // "Now playing" page, which (with our theme) had no way back. With the Music page on,
+    // music opens our Now Playing tab instead, as a new history entry so Back returns to
+    // wherever you were, and music.js shows a back arrow there for the same thing.
+    document.addEventListener('click', (e) => {
+        if (!MUSIC_ON || !music() || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+        const bar = e.target.closest('.nowPlayingBar');
+        if (!bar || e.target.closest('button, input, .sliderContainer, .nowPlayingBarPositionContainer, .emby-slider')) return;
+        if (!e.target.closest('.nowPlayingBarInfoContainer, .nowPlayingImage, .nowPlayingBarText, .nowPlayingBarCenter')) return;
+        const pm = window.playbackManager || (window.Emby && window.Emby.PlaybackManager);
+        const item = pm && pm.currentItem ? pm.currentItem() : null;
+        if (item && item.MediaType && item.MediaType !== 'Audio') return;   // a video: Jellyfin's player
+        e.preventDefault(); e.stopPropagation();
+        music().cameFrom(location.hash);
+        history.pushState({ page: 'tuner-music' }, 'Music', MUSIC_ROUTE + '/nowplaying');
+        showPage('music');
+        if (S.active === 'music') music().show(pageEl('music'), location.hash);
+    }, true);
+
+    // Networks (Shows -> Networks, any card for a Studio): most networks have no picture
+    // (79 of 105 here, mostly small Japanese stations from anime, and Jellyfin's Studio
+    // Images source has none for them), so the page was a wall of blank grey cards. Every
+    // network card gets the same treatment instead: its name on a colored gradient, the
+    // color picked from the name so it stays the same everywhere. Logos go too, on purpose:
+    // a few logos among name tiles looked worse than all names. Only with the TV section on.
+    const NET_COLORS = [['#5b2a86', '#2d1650'], ['#22506b', '#10293a'], ['#7a2a3e', '#3d1320'], ['#2a6b5e', '#123630'],
+        ['#46306b', '#211536'], ['#8a6d2a', '#43330f'], ['#2d4f7a', '#14263e'], ['#6b2a5e', '#35122e'], ['#3d5a2a', '#1c2b12']];
+    const netNames = new Map();
+    function styleNetworks() {
+        if (!TV_ON) return;
+        document.querySelectorAll('.card[data-type="Studio"]:not([data-tnr-net])').forEach((card) => {
+            card.setAttribute('data-tnr-net', '');
+            const box = card.querySelector('.cardImageContainer');
+            if (!box) return;
+            const draw = (name) => {
+                if (!name || box.querySelector('.tnr-netname')) return;
+                let h = 0; for (let i = 0; i < name.length; i++) h = (Math.imul(h, 31) + name.charCodeAt(i)) | 0;
+                const [a, b] = NET_COLORS[(h >>> 0) % NET_COLORS.length];
+                box.style.setProperty('--tnr-net-a', a); box.style.setProperty('--tnr-net-b', b);
+                const span = document.createElement('span');
+                span.className = 'tnr-netname' + (name.length > 20 ? ' long' : '');
+                span.textContent = name;
+                box.appendChild(span);
+                card.classList.add('tnr-net');
+            };
+            const text = card.querySelector('.cardText');
+            const id = card.getAttribute('data-id');
+            if (text && text.textContent.trim()) draw(text.textContent.trim());
+            else if (id && netNames.has(id)) draw(netNames.get(id));
+            else if (id) {
+                ApiClient.getItem(ApiClient.getCurrentUserId(), id)
+                    .then((it) => { netNames.set(id, it.Name); draw(it.Name); }).catch(() => {});
+            }
+        });
+    }
+
+    // A floating "back to top" button on long pages, ours and Jellyfin's alike: it shows
+    // once you're two screens down and hides again near the top.
+    function injectBackToTop() {
+        if (document.querySelector('.tnr-totop')) return;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'tnr-totop'; b.title = 'Back to top'; b.setAttribute('aria-label', 'Back to top');
+        b.innerHTML = '<span class="material-icons" aria-hidden="true">arrow_upward</span>';
+        b.addEventListener('click', () => window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+        document.body.appendChild(b);
+        let tick = false;
+        const sync = () => { tick = false; b.classList.toggle('show', window.scrollY > window.innerHeight * 2 && !document.fullscreenElement); };
+        window.addEventListener('scroll', () => { if (!tick) { tick = true; requestAnimationFrame(sync); } }, { passive: true });
+        sync();
+    }
+
     // jellyfin-web answers addresses it doesn't know (ours, after Back or Forward) with its
     // "page not found" view, drawn after we've already put ours up. While the address is one
     // of ours, nothing of Jellyfin's should be showing.
@@ -2442,7 +2561,7 @@
         let pending = false;
         new MutationObserver(() => {
             if (pending) return; pending = true;
-            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectSections(); injectSearchRequest(); injectAppsRow(); });
+            requestAnimationFrame(() => { pending = false; injectNav(); injectTopBar(); injectSeasonal(); relabelCollectionPlaylists(); catchMusicRoute(); hideStrayPages(); injectSections(); styleNetworks(); injectSearchRequest(); injectAppsRow(); });
         }).observe(document.body, { childList: true, subtree: true });
         // The tab title lives in <head>, which the body observer doesn't see.
         new MutationObserver(keepOurTitle).observe(document.head, { childList: true, subtree: true, characterData: true });
@@ -2453,6 +2572,7 @@
         window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { injectTopBar(); if (S.active === 'radio') { renderScale(); renderNeedle(); } }, 150); });
         window.addEventListener('popstate', route);
         window.addEventListener('hashchange', route);
+        injectBackToTop();
         route();
     }
     boot();

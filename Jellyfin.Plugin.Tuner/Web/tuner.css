@@ -214,6 +214,12 @@ body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; 
 .tnr-tv-status { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; align-items: center; justify-content: center;
   color: #cfd5dc; font-size: 1.1em; pointer-events: none; text-align: center; padding: 1em; }
 .tnr-tv-status.show { display: flex; }
+/* Shown while Surf is paused, so there's an obvious way back to playing. */
+.tnr-resume { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; width: 4.5em; height: 4.5em;
+  border-radius: 50%; border: 0; background: #0f1216cc; color: #fff; cursor: pointer; align-items: center; justify-content: center; }
+.tnr-resume .material-icons { font-size: 3em; }
+.tnr-resume.show { display: flex; }
+.tnr-resume:hover, .tnr-resume:focus-visible { background: #0f1216; outline: 2px solid var(--tnr-ch, #fff); }
 .tnr-tv-digits { position: absolute; top: .6em; right: .8em; font: 500 2.2em monospace; color: #fff;
   text-shadow: 0 0 6px #000; pointer-events: none; }
 .tnr-banner { position: absolute; left: .8em; right: .8em; bottom: .8em; display: flex; gap: .9em; align-items: center;
@@ -278,9 +284,6 @@ body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; 
 .tnm-tab:hover { color: #fff; }
 .tnm-tab.on { color: #fff; border-bottom-color: var(--tnm-accent, var(--jf-palette-primary-main, #00a4dc)); }
 .tnm-gap { flex: 1; }
-.tnm-classic { background: none; border: 0; color: var(--tnm-faint, rgba(255, 255, 255, .42)); font: inherit; font-size: .85em; cursor: pointer;
-  padding: .7em .4em; white-space: nowrap; }
-.tnm-classic:hover { color: #fff; text-decoration: underline; }
 .tnm-empty { color: var(--tnm-dim); padding: 3em 0; text-align: center; }
 .tnm-h1 { font-size: 1.8em; font-weight: 500; margin: .2em 0 .8em; }
 .tnm-h2 { font-size: 1.25em; font-weight: 500; margin: 1.4em 0 .6em; }
@@ -291,6 +294,37 @@ body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; 
 .tnm-searchbox > * + * { margin-left: .5em; }
 .tnm-searchbox:focus-within { border-color: var(--tnm-accent); }
 .tnm-searchbox .material-icons { color: var(--tnm-faint); }
+/* The search box with the random-song dice beside it, and the result filters under it. */
+.tnm-searchrow { display: flex; align-items: center; max-width: 40em; }
+.tnm-searchrow .tnm-searchbox { flex: 1; }
+.tnm-dice { flex-shrink: 0; margin-left: .6em; width: 2.9em; height: 2.9em; border-radius: 10px; border: 0; cursor: pointer;
+  background: var(--tnm-panel2); color: #fff; display: flex; align-items: center; justify-content: center; }
+.tnm-dice:hover, .tnm-dice:focus-visible { background: rgba(255, 255, 255, .16); outline: none; }
+.tnm-dice.rolling .material-icons { animation: tnm-roll .7s cubic-bezier(.3, .6, .4, 1); }
+@keyframes tnm-roll { 0% { transform: rotate(0) scale(1); } 40% { transform: rotate(400deg) scale(1.25); } 100% { transform: rotate(720deg) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .tnm-dice.rolling .material-icons { animation: none; opacity: .5; } }
+.tnm-filters { display: flex; flex-wrap: wrap; gap: .5em; margin: .8em 0 1.2em; }
+.tnm-filters[hidden] { display: none; }
+.tnm-filters button { background: var(--tnm-panel2); color: var(--tnm-dim); border: 0; border-radius: 999px; padding: .35em 1em; font: inherit; cursor: pointer; }
+.tnm-filters button:hover { color: #fff; }
+.tnm-filters button.on { background: #fff; color: #000; }
+/* A page title with a back arrow before it (More genres). */
+.tnm-pagehead { display: flex; align-items: center; margin: .2em 0 .8em; }
+.tnm-pagehead .tnm-h1 { margin: 0; }
+.tnm-back { display: inline-flex; align-items: center; justify-content: center; width: 2.2em; height: 2.2em; margin-right: .5em;
+  border-radius: 50%; color: #fff; text-decoration: none; background: var(--tnm-panel2); }
+.tnm-back:hover { background: rgba(255, 255, 255, .16); }
+.tnm-pagehead + .tnm-searchbox { margin-bottom: 1.2em; }
+.tnm-genre[hidden] { display: none; }
+/* "Don't see a song? Request it" (only when the server has a Discord webhook). */
+.tnm-request { max-width: 40em; margin: 1.6em 0 0; }
+.tnm-request label { display: block; color: var(--tnm-dim); margin-bottom: .45em; }
+.tnm-request-row { display: flex; gap: .6em; }
+.tnm-request-row input { flex: 1; min-width: 0; background: var(--tnm-panel2); border: 1px solid transparent; border-radius: 10px; color: #fff;
+  font: inherit; padding: .65em .9em; outline: none; }
+.tnm-request-row input:focus { border-color: var(--tnm-accent); }
+.tnm-request-msg { min-height: 1.3em; margin-top: .4em; font-size: .9em; color: var(--tnm-dim); }
+.tnm-request-msg.bad { color: #ff8a80; }
 .tnm-search { flex: 1; background: none; border: 0; outline: none; color: #fff; font: inherit; font-size: 1.1em; padding: .75em 0; min-width: 0; }
 .tnm-genres { display: grid; grid-template-columns: repeat(auto-fill, minmax(12em, 1fr)); gap: .9em; }
 .tnm-genre { position: relative; overflow: hidden; height: 7.5em; border-radius: 10px; color: #fff; text-decoration: none;
@@ -405,6 +439,16 @@ body.tnr-page-active .skinBody .page:not(.tnr-page) { display: none !important; 
 .tnm-song-name, .tnm-song-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tnm-song-sub { font-size: .82em; color: var(--tnm-dim); }
 .tnm-song-time { color: var(--tnm-faint); font-variant-numeric: tabular-nums; font-size: .9em; }
+/* The favorite heart at the end of each song line. */
+.tnm-fav { flex-shrink: 0; background: none; border: 0; padding: .2em; cursor: pointer; color: var(--tnm-faint); display: flex; border-radius: 50%; }
+.tnm-fav .material-icons { font-size: 1.25em; }
+.tnm-fav:hover, .tnm-fav:focus-visible { color: #fff; outline: none; }
+.tnm-fav.on { color: #e5484d; }
+/* The Playlists row's "New playlist" card is a button; make it look like the other cards. */
+.tnm-newpl { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.tnm-newpl .tnm-noart { background: var(--tnm-panel2); }
+.tnm-newpl .tnm-noart .material-icons { font-size: 3em; color: var(--tnm-dim); }
+.tnm-newpl:hover .tnm-noart .material-icons { color: #fff; }
 .tnm-disc { color: var(--tnm-dim); font-size: .85em; padding: 1em .6em .3em; }
 
 /* Now Playing */
@@ -495,3 +539,27 @@ body.tnr-music-on[data-tnr-page="radio"] .MuiAppBar-root .MuiStack-root > a[href
   .tnm-np-art { width: 100%; }
   .tnm-genres { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Floating "back to top" (tuner.js injectBackToTop), above the media bar. */
+.tnr-totop { position: fixed; right: 1.2em; bottom: 6.5em; z-index: 1000; width: 2.8em; height: 2.8em; border-radius: 50%; border: 0;
+  background: #0f1216e0; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(.6em); pointer-events: none; transition: opacity .2s, transform .2s; }
+.tnr-totop.show { opacity: 1; transform: none; pointer-events: auto; }
+.tnr-totop:hover, .tnr-totop:focus-visible { background: #22272e; outline: none; }
+
+/* Radio's random-station dice (tuner.js randomStation). */
+.tnr-dice { display: inline-flex; align-items: center; justify-content: center; }
+.tnr-dice.rolling .material-icons { animation: tnm-roll .6s cubic-bezier(.3, .6, .4, 1); }
+@media (prefers-reduced-motion: reduce) { .tnr-dice.rolling .material-icons { animation: none; opacity: .5; } }
+
+/* Network cards as name tiles (tuner.js styleNetworks). */
+.card.tnr-net .cardImageContainer { background-image: none !important;
+  background: linear-gradient(135deg, var(--tnr-net-a, #46306b), var(--tnr-net-b, #211536)) !important;
+  display: flex !important; align-items: center; justify-content: center; }
+.card.tnr-net .cardImageContainer > :not(.tnr-netname), .card.tnr-net .cardImageIcon { display: none !important; }
+.card.tnr-net .cardFooter, .card.tnr-net .cardText { display: none !important; }
+.tnr-netname { padding: 0 .7em; text-align: center; color: #fff; font-weight: 700; font-size: 1.35em; line-height: 1.15;
+  letter-spacing: .02em; text-shadow: 0 2px 8px rgba(0, 0, 0, .45); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tnr-netname.long { font-size: 1.05em; }
+.card.tnr-net:hover .cardImageContainer { filter: brightness(1.15); }

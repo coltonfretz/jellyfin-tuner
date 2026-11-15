@@ -127,7 +127,9 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     // After client.js on purpose: tuner.js looks for this tag to know the Music
                     // page is on (Radio then moves into it), and music.js uses tuner.js's window.Tuner.
                     var min = Math.Clamp(config.MusicMinSongs, 1, 50);
-                    tags += $"<script src=\"../Tuner/music.js?v={v}\" data-min-songs=\"{min}\" defer></script>";
+                    // data-requests only says the box should show; the webhook stays on the server.
+                    var req = string.IsNullOrWhiteSpace(config.SongRequestWebhook) ? "0" : "1";
+                    tags += $"<script src=\"../Tuner/music.js?v={v}\" data-min-songs=\"{min}\" data-requests=\"{req}\" defer></script>";
                 }
 
                 if (config?.SyncPlayChat == true)

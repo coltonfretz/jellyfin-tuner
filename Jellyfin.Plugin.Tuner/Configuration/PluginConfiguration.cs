@@ -134,6 +134,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public string RequestUrl { get; set; } = string.Empty;
 
     /// <summary>
+    /// Discord webhook for song requests (2026-11-14). Set: the Music page's Search tab gets a
+    /// "Don't see a song? Request it" box taking a Spotify or YouTube link, which the server
+    /// checks, tidies and posts here. Only the server uses it; browsers never get it.
+    /// </summary>
+    public string SongRequestWebhook { get; set; } = string.Empty;
+
+    /// <summary>
     /// "Get apps" in everyone's settings menu (avatar -> the list with Profile, Display ...):
     /// a page of the apps in <see cref="Apps"/>, the ones for the device you're on first.
     /// WHY in the settings menu and not the top bar: you need it once per device, and the
