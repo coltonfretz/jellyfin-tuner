@@ -99,6 +99,19 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool SmoothIgnoreReducedMotion { get; set; }
 
     /// <summary>
+    /// Cap jellyfin-web's "Next episode playing in..." countdown (upnext.js). WHY
+    /// (2026-11-19): Fretzflix users said the wait was too long; Jellyfin counts down the
+    /// whole credits (median ~55 s, up to minutes) and has no setting for it. Off by default:
+    /// how long to wait is each server's call.
+    /// </summary>
+    public bool ShortUpNext { get; set; }
+
+    /// <summary>
+    /// Seconds the capped countdown runs (5-120). 15 picked by Colton 2026-11-19.
+    /// </summary>
+    public int UpNextSeconds { get; set; } = 15;
+
+    /// <summary>
     /// Load an item's backdrop while the mouse rests on its poster, so its page opens with the
     /// art already there (tuner.js warmItemPages). WHY: the backdrop is the slowest part of
     /// opening an item page (Fretzflix, 2026-11-15). Off by default.

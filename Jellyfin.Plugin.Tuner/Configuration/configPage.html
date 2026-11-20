@@ -110,6 +110,16 @@
                     </div>
                     <div class="checkboxContainer">
                         <label>
+                            <input is="emby-checkbox" type="checkbox" id="ShortUpNext" />
+                            <span>Shorter "Next episode" countdown when the credits start</span>
+                        </label>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="UpNextSeconds" label="Seconds before the next episode starts" min="5" max="120" />
+                        <div class="fieldDescription">Jellyfin normally counts down the whole credits, often a minute or more. Hide in the popup still lets people watch them. Browser, desktop and Android apps, not the TV apps.</div>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label>
                             <input is="emby-checkbox" type="checkbox" id="WarmItemPages" />
                             <span>Load a movie or show's background art while the mouse rests on its poster</span>
                         </label>
@@ -327,6 +337,8 @@
                         page.querySelector('#HideCollectionsLibrary').checked = config.HideCollectionsLibrary !== false;
                         page.querySelector('#SmoothScrolling').checked = !!config.SmoothScrolling;
                         page.querySelector('#SmoothIgnoreReducedMotion').checked = !!config.SmoothIgnoreReducedMotion;
+                        page.querySelector('#ShortUpNext').checked = !!config.ShortUpNext;
+                        page.querySelector('#UpNextSeconds').value = config.UpNextSeconds || 15;
                         page.querySelector('#WarmItemPages').checked = !!config.WarmItemPages;
                         page.querySelector('#MusicPage').checked = !!config.MusicPage;
                         page.querySelector('#TvSection').checked = !!config.TvSection;
@@ -358,6 +370,8 @@
                         config.HideCollectionsLibrary = page.querySelector('#HideCollectionsLibrary').checked;
                         config.SmoothScrolling = page.querySelector('#SmoothScrolling').checked;
                         config.SmoothIgnoreReducedMotion = page.querySelector('#SmoothIgnoreReducedMotion').checked;
+                        config.ShortUpNext = page.querySelector('#ShortUpNext').checked;
+                        config.UpNextSeconds = Math.min(120, Math.max(5, parseInt(page.querySelector('#UpNextSeconds').value, 10) || 15));
                         config.WarmItemPages = page.querySelector('#WarmItemPages').checked;
                         config.MusicPage = page.querySelector('#MusicPage').checked;
                         config.TvSection = page.querySelector('#TvSection').checked;

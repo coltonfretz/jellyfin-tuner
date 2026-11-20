@@ -143,6 +143,12 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     tags += $"<script src=\"../Tuner/smooth.js?v={v}\"{ignoreReduced} defer></script>";
                 }
 
+                if (config?.ShortUpNext == true)
+                {
+                    var upNextSeconds = Math.Clamp(config.UpNextSeconds, 5, 120);
+                    tags += $"<script src=\"../Tuner/upnext.js?v={v}\" data-seconds=\"{upNextSeconds}\" defer></script>";
+                }
+
                 if (config?.SyncPlayChat == true)
                 {
                     tags += $"<script src=\"../Tuner/party.js?v={v}\" defer></script>";

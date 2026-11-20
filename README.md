@@ -50,6 +50,7 @@ Every part is off until you set it up.
 - A floating **back to top** button on long pages.
 - **Item art on hover (optional):** resting the mouse on a poster loads that movie or show's background art, so its page opens with the art already there. One at a time, after a short rest, never on touch.
 - **Smooth scrolling (optional):** the mouse wheel glides the page and eases to a stop, like [lenis.dev](https://lenis.dev). Boxes that scroll on their own, touch screens, the TV layout and "reduce motion" (unless you choose otherwise) keep normal scrolling.
+- **Shorter "Next episode" countdown (optional):** Jellyfin counts down the whole credits before the next episode, often a minute or more. This counts a set number of seconds instead (15 by default) and then starts it. Hide in the popup still lets you watch the credits; people with auto-play off are left alone.
 
 **Works in** web-based apps: browsers, Jellyfin Desktop (and the older Jellyfin Media Player), and the official Android and iPhone apps. Native TV apps (Android TV, Roku, Apple TV) draw their own screens and won't show it.
 
@@ -138,6 +139,7 @@ Four tabs. **Turn off the pages** (below them) hides everything without uninstal
 | Hide the Collections library | Keeps the all-year Collections tile out of My Media. |
 | Library tile pictures | Days between new pictures; 0 = never (use 0 if you uploaded your own). |
 | Smooth scrolling | On/off: the wheel glides the page instead of jumping. Off by default. A second box glides even on devices set to reduce motion (Windows: animation effects off). |
+| Shorter "Next episode" countdown | On/off plus seconds (5-120, default 15): when the credits start, the next episode begins after this many seconds instead of at the end of the file. Off by default. Browser, desktop and Android apps. |
 | Item art on hover | On/off: load a poster's backdrop while the mouse rests on it. Learns the backdrop's size from the first item page opened. Off by default. |
 
 ## Station list format
