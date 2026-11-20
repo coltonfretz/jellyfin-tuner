@@ -44,13 +44,13 @@
     const APPS_ROUTE = '#/tuner/apps';
     // Request opens INSIDE Fretzflix when it can (Fretzflix review 2026-11-05: the popup felt
     // like leaving the app). It can only when the request site shares a "site" with the
-    // address Jellyfin is open on, e.g. requests.fretzflix.duckdns.org inside
-    // fretzflix.duckdns.org: browsers don't send a site its sign-in cookie inside another
-    // site's page, so Seerr would ask to sign in forever. Elsewhere (at home on
-    // jellyfin.home.internal) it still opens in a new tab.
+    // address Jellyfin is open on, e.g. requests.media.example.org inside
+    // media.example.org: browsers don't send a site its sign-in cookie inside another
+    // site's page, so Seerr would ask to sign in forever. Elsewhere (e.g. a LAN-only
+    // jellyfin.lan) it still opens in a new tab.
     // "Same site" here: the request host is the page's host, or under it, or under the
-    // page's parent when that parent still has 3+ labels (tv.fretzflix.duckdns.org ->
-    // fretzflix.duckdns.org; never just duckdns.org or home.internal). And both https.
+    // page's parent when that parent still has 3+ labels (tv.media.example.org ->
+    // media.example.org; never just example.org or a bare LAN name). And both https.
     // The browser must also be new enough to RUN the request site. Seerr 3.5 is a Next.js
     // 16 build aimed at Chrome 111+: its scripts use `??=` (a syntax error before Chrome 85,
     // which kills the whole script), structuredClone (98) and Array.at (92). Jellyfin's
@@ -1327,7 +1327,7 @@
     // The request site scrolls itself, so the frame fills exactly the window below where it
     // starts and Jellyfin's page doesn't scroll at all while it's open (html.tnr-req-open).
     // Before (2026-11-05), a fixed calc() height plus Jellyfin's ~250 px of page padding
-    // made the page scroll a little too, and the wheel moved both (Colton: "awkward").
+    // made the page scroll a little too, and the wheel moved both (it felt awkward).
     function fitRequest() {
         const f = $('.tnr-req');
         if (!f || !f.offsetParent) return;

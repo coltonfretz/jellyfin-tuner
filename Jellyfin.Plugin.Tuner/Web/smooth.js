@@ -1,7 +1,7 @@
 /*
  * Tuner: smooth scrolling for jellyfin-web, the lenis.dev feel.
  *
- * WHY (Fretzflix, 2026-11-15): Colton wanted page scrolling to feel like lenis.dev ("butter
+ * WHY (Fretzflix, 2026-11-15): page scrolling should feel like lenis.dev ("butter
  * from the happiest cows"). A mouse wheel normally jumps ~100 px per notch; here each notch
  * moves a target instead, and the page glides toward it every frame, easing out (the same
  * damped-lerp Lenis uses, made frame-rate independent so 144 Hz screens feel the same).
@@ -23,7 +23,7 @@
 
     // Lenis' default is "lerp: 0.1" (each 60 Hz frame covers 10% of what's left); lower is
     // floatier. Try other values with TunerSmooth.lerp = 0.1 in the console.
-    // 0.07 since 1.0.9.2: Colton tried 0.1/0.08/0.07 on his laptop (Intel UHD 620, ~10% late
+    // 0.07 since 1.0.9.2: 0.1/0.08/0.07 tried on a laptop (Intel UHD 620, ~10% late
     // frames on the home page) and 0.07 "feels like sliding, not ticking": a late frame
     // skips fewer pixels.
     const api = { lerp: 0.07, wheelMultiplier: 1, enabled: true };
@@ -93,7 +93,7 @@
 
     // While gliding the page ignores the mouse (html.tnr-gliding, tuner.css). WHY (1.0.9.2):
     // every poster sliding under a resting pointer counted as hovered, fading its glow and
-    // Jellyfin's hover buttons in and out, dozens of redraws per glide, which Colton saw as
+    // Jellyfin's hover buttons in and out, dozens of redraws per glide, which showed as
     // jitter. Hover comes back a moment after the page settles.
     function gliding(on) {
         clearTimeout(hoverBack);

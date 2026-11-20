@@ -86,28 +86,28 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// Mouse-wheel scrolling glides and eases out (smooth.js) instead of jumping a notch at a
-    /// time. WHY: Colton wanted Fretzflix to scroll like lenis.dev (2026-11-15). Off by
+    /// time. WHY: page scrolling that feels like lenis.dev (2026-11-15). Off by
     /// default: taking over the wheel is a taste call each server should make.
     /// </summary>
     public bool SmoothScrolling { get; set; }
 
     /// <summary>
-    /// Smooth scrolling even on devices set to reduce motion. WHY (2026-11-15): Colton's own
-    /// computer has reduce motion on (animations off), so 1.0.9.0 never glided for him, and
-    /// he wanted the glide on Fretzflix without turning animations back on everywhere.
+    /// Smooth scrolling even on devices set to reduce motion. WHY (2026-11-15): a computer with
+    /// reduce motion on (animations off) never glided in 1.0.9.0, and some people want the
+    /// glide in Jellyfin without turning animations back on everywhere.
     /// </summary>
     public bool SmoothIgnoreReducedMotion { get; set; }
 
     /// <summary>
     /// Cap jellyfin-web's "Next episode playing in..." countdown (upnext.js). WHY
-    /// (2026-11-19): Fretzflix users said the wait was too long; Jellyfin counts down the
+    /// (2026-11-19): viewers said the wait was too long; Jellyfin counts down the
     /// whole credits (median ~55 s, up to minutes) and has no setting for it. Off by default:
     /// how long to wait is each server's call.
     /// </summary>
     public bool ShortUpNext { get; set; }
 
     /// <summary>
-    /// Seconds the capped countdown runs (5-120). 15 picked by Colton 2026-11-19.
+    /// Seconds the capped countdown runs (5-120). Default 15: long enough to cancel, short enough not to drag.
     /// </summary>
     public int UpNextSeconds { get; set; } = 15;
 

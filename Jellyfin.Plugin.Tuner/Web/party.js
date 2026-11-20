@@ -694,7 +694,7 @@ a.tnrp-btn { text-decoration: none; }
     // in a built-in browser, like Jellyfin Desktop 2.0, may not.
     function youTubeErrorText(code) {
         if (code === 101 || code === 150) return "This video's owner doesn't allow it to play outside YouTube. Use Open on YouTube above.";
-        if (code === 152 || code === 153) return `This app can't play YouTube videos (YouTube error ${code}). Open Fretzflix in a web browser like Firefox or Chrome, or use Open on YouTube above.`;
+        if (code === 152 || code === 153) return `This app can't play YouTube videos (YouTube error ${code}). Open this server in a web browser like Firefox or Chrome, or use Open on YouTube above.`;
         if (code === 100) return 'This video is private or was removed.';
         if (code === 2) return "That link doesn't point to a playable video.";
         if (code === 5) return `This browser couldn't play the video (YouTube error 5). Try Open on YouTube above.`;
