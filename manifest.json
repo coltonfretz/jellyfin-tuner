@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.12.2",
+        "changelog": "Watch party: a bad user-list reply no longer crashes the page (\"c.find is not a function\"); such replies and Jellyfin's error page are noted in the server log",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v1.0.12.2/tuner_1.0.12.2.zip",
+        "checksum": "9e1749ae76caa5c1ab0a5132f699fc93",
+        "timestamp": "2026-11-21T04:10:59Z"
+      },
+      {
         "version": "1.0.12.0",
         "changelog": "Optional shorter Next episode countdown (Settings, off by default, 15 s); Watch party's browser hint no longer names one server",
         "targetAbi": "12.2.0.0",
