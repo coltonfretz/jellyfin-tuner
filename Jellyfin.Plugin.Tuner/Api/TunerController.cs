@@ -500,6 +500,45 @@ public class TunerController : ControllerBase
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<DateTime>> RequestTimes = new();
     private const int RequestsPerHour = 10;
 
+    public sealed class UserListReport
+    {
+        public string? Kind { get; set; }
+
+        public string? Details { get; set; }
+
+        public int Status { get; set; }
+
+        public string? ContentType { get; set; }
+
+        public int Length { get; set; }
+
+        public string? Sample { get; set; }
+
+        public string? Agent { get; set; }
+    }
+
+    /// <summary>
+    /// tuner.js caught a GET /Users reply that wasn't a list (which crashes Jellyfin's
+    /// Watch party menu) and swapped in an empty one; this records what really arrived.
+    /// </summary>
+    [HttpPost("diag/userlist")]
+    [Authorize]
+    public ActionResult UserListDiag([FromBody] UserListReport body)
+    {
+        static string Clip(string? s, int max) => (s ?? string.Empty).Length > max ? s![..max] : s ?? string.Empty;
+        _logger.LogWarning(
+            "Tuner diag [{Kind}] from {User}: HTTP {Status}, {Type}, {Length} chars. Text: {Sample} | {Details} | Browser: {Agent}",
+            Clip(body?.Kind, 20),
+            User.Identity?.Name ?? "unknown",
+            body?.Status,
+            Clip(body?.ContentType, 100),
+            body?.Length,
+            Clip(body?.Sample, 300).ReplaceLineEndings(" "),
+            Clip(body?.Details, 400).ReplaceLineEndings(" "),
+            Clip(body?.Agent, 200));
+        return NoContent();
+    }
+
     public sealed class SongRequestBody
     {
         public string? Url { get; set; }

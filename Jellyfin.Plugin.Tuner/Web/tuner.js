@@ -14,6 +14,121 @@
     'use strict';
     if (window.__tunerLoaded) return;
     window.__tunerLoaded = true;
+    guardUserList();
+
+    // Jellyfin's Watch party menu shows each member's picture by looking them up in the
+    // server's user list (GET /Users), and it assumes that reply is a list. On 2026-11-20 one
+    // viewer's page died with "c.find is not a function" in that menu, over and over while in
+    // a party (Firefox and the desktop app, same machine); the server sends a proper list, so
+    // the cause is still open. Here: a reply that isn't a list reads as an empty one (the menu
+    // just has no member pictures), and that reply, or Jellyfin's crash page if it shows
+    // anyway, goes to the server log once via /Tuner/diag.
+    function guardUserList() {
+        const isUserList = (url) => {
+            try { return /\/Users\/?$/i.test(new URL(url, location.href).pathname); } catch (e) { return false; }
+        };
+        const notAList = (text) => {
+            try { return !Array.isArray(JSON.parse(text)); } catch (e) { return true; }
+        };
+        // What the guard has seen, for the crash report below.
+        const seen = { requests: 0, last: '' };
+        const note = (via, status, text) => {
+            seen.requests++;
+            let kind;
+            try { const v = JSON.parse(text); kind = Array.isArray(v) ? 'list of ' + v.length : typeof v; } catch (e) { kind = 'not JSON'; }
+            seen.last = `${via} HTTP ${status}, ${kind}, ${text == null ? -1 : String(text).length} chars`;
+        };
+        const sent = {};
+        function send(kind, status, type, text, details) {
+            if (sent[kind]) return;
+            sent[kind] = true;
+            try {
+                if (!window.ApiClient || !ApiClient.getUrl) return;
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('Tuner/diag/userlist'),
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        kind: kind,
+                        status: status,
+                        contentType: String(type || ''),
+                        length: text == null ? -1 : String(text).length,
+                        sample: String(text == null ? '(null)' : text).slice(0, 300),
+                        details: details || '',
+                        agent: navigator.userAgent,
+                    }),
+                }).catch(() => { /* only a diagnostic */ });
+            } catch (e) { /* only a diagnostic */ }
+        }
+        const report = (status, type, text) => send('bad-reply', status, type, text);
+
+        // If Jellyfin's "Unexpected Application Error" page shows anyway, say so with what
+        // the guard saw, so the server log has more than the viewer's screenshot.
+        const watchCrash = () => {
+            const t = document.body ? document.body.innerText || '' : '';
+            if (t.indexOf('Unexpected Application Error') < 0) return;
+            send('crash', 0, '', t.slice(0, 300).replace(/\s+/g, ' '),
+                `tuner ${tunerSrc.replace(/^.*\//, '')} | Array.find: ${typeof [].find} | /Users seen: ${seen.requests} (last: ${seen.last || 'none'}) | page: ${location.hash.slice(0, 80)}`);
+        };
+        const tunerSrc = (document.currentScript && document.currentScript.src) || '';
+        setInterval(() => { if (!sent.crash) watchCrash(); }, 2000);
+
+        // axios (what Jellyfin's newer screens use) reads responseText and parses it itself.
+        try {
+            const desc = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'responseText');
+            const respDesc = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'response');
+            const open = XMLHttpRequest.prototype.open;
+            if (desc && desc.get && respDesc && respDesc.get) {
+                XMLHttpRequest.prototype.open = function (method, url) {
+                    if (String(method).toUpperCase() === 'GET' && isUserList(String(url))) {
+                        const xhr = this;
+                        let noted = false;
+                        const fixed = (raw) => {
+                            if (xhr.readyState === 4 && !noted) { noted = true; note('xhr', xhr.status, raw); }
+                            if (xhr.readyState !== 4 || xhr.status < 200 || xhr.status >= 300 || !notAList(raw)) return raw;
+                            report(xhr.status, xhr.getResponseHeader('Content-Type'), raw);
+                            return '[]';
+                        };
+                        Object.defineProperty(xhr, 'responseText', { configurable: true, get() { return fixed(desc.get.call(xhr)); } });
+                        Object.defineProperty(xhr, 'response', {
+                            configurable: true,
+                            get() {
+                                const r = respDesc.get.call(xhr);
+                                if (typeof r === 'string') return fixed(r);
+                                if (xhr.responseType === 'json' && r != null && !Array.isArray(r) && xhr.readyState === 4 && xhr.status >= 200 && xhr.status < 300) {
+                                    report(xhr.status, xhr.getResponseHeader('Content-Type'), JSON.stringify(r));
+                                    return [];
+                                }
+                                return r;
+                            },
+                        });
+                    }
+                    return open.apply(this, arguments);
+                };
+            }
+        } catch (e) { /* leave XHR alone */ }
+
+        // fetch, in case a Jellyfin update moves that request over to it.
+        try {
+            const origFetch = window.fetch;
+            if (typeof origFetch === 'function') {
+                window.fetch = function (input, init) {
+                    const url = typeof input === 'string' ? input : (input && (input.href || input.url)) || '';
+                    const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+                    const p = origFetch.apply(this, arguments);
+                    if (method !== 'GET' || !isUserList(url)) return p;
+                    return p.then(async (res) => {
+                        if (!res.ok) return res;
+                        const text = await res.clone().text().catch(() => null);
+                        note('fetch', res.status, text);
+                        if (text == null || !notAList(text)) return res;
+                        report(res.status, res.headers.get('Content-Type'), text);
+                        return new Response('[]', { status: res.status, statusText: res.statusText, headers: res.headers });
+                    });
+                };
+            }
+        } catch (e) { /* leave fetch alone */ }
+    }
 
     const ROUTE = '#/tuner/radio';
     const MUSIC_ROUTE = '#/tuner/music';
