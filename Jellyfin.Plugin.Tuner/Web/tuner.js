@@ -72,6 +72,64 @@
         };
         const tunerSrc = (document.currentScript && document.currentScript.src) || '';
         setInterval(() => { if (!sent.crash) watchCrash(); }, 2000);
+        repairSavedUserList();
+
+        // Jellyfin 12.4 saves its data cache in the browser (IndexedDB "keyval-store", key
+        // "jellyfin-query-cache") and on the next visit draws from it before asking the
+        // server. The 2026-11-20 crash came from there: the guard above never saw a /Users
+        // request, yet the saved user list wasn't a list, and Ctrl+Shift+R doesn't clear
+        // IndexedDB. So: drop just that one bad entry, log what it was, and reload once so
+        // Jellyfin starts without it. Everything else in the cache is left alone.
+        // Removes bad saved user lists; calls done(count, shape) when finished (0 if none).
+        function cleanSavedUserList(done) {
+            let req;
+            try { req = indexedDB.open('keyval-store'); } catch (e) { done(0); return; }
+            // Never create the database ourselves: abort if it doesn't exist yet.
+            req.onupgradeneeded = () => { try { req.transaction.abort(); } catch (e) { /* ignore */ } };
+            req.onerror = () => done(0);
+            req.onsuccess = () => {
+                const db = req.result;
+                let count = 0, shape = '';
+                try {
+                    if (!db.objectStoreNames.contains('keyval')) { db.close(); done(0); return; }
+                    const tx = db.transaction('keyval', 'readwrite');
+                    const store = tx.objectStore('keyval');
+                    const get = store.get('jellyfin-query-cache');
+                    get.onsuccess = () => {
+                        const saved = get.result;
+                        const queries = saved && saved.clientState && saved.clientState.queries;
+                        if (!Array.isArray(queries)) return;
+                        const bad = queries.filter((q) => q && Array.isArray(q.queryKey) && q.queryKey.length === 1
+                            && q.queryKey[0] === 'Users' && q.state && q.state.data != null && !Array.isArray(q.state.data));
+                        if (!bad.length) return;
+                        const d = bad[0].state.data;
+                        try { shape = JSON.stringify(d); } catch (e) { shape = String(d); }
+                        shape = `${typeof d} ${d && d.constructor && d.constructor.name}: ${shape}`;
+                        count = bad.length;
+                        saved.clientState.queries = queries.filter((q) => bad.indexOf(q) < 0);
+                        store.put(saved, 'jellyfin-query-cache');
+                    };
+                    tx.oncomplete = () => { db.close(); done(count, shape); };
+                    tx.onerror = tx.onabort = () => { db.close(); done(0); };
+                } catch (e) { try { db.close(); } catch (x) { /* ignore */ } done(0); }
+            };
+        }
+        function repairSavedUserList() {
+            if (!window.indexedDB) return;
+            let reloaded = false;
+            try { reloaded = sessionStorage.getItem('tnr.userListRepaired') === '1'; } catch (e) { /* private mode */ }
+            cleanSavedUserList((count, shape) => {
+                if (!count) return;
+                const whenReady = (fn, tries) => (window.ApiClient && ApiClient.getUrl) || tries <= 0 ? fn() : setTimeout(() => whenReady(fn, tries - 1), 250);
+                whenReady(() => {
+                    send('saved-cache', 0, '', shape, `removed ${count} saved user list(s) | tuner ${tunerSrc.replace(/^.*\//, '')}${reloaded ? ' | after the reload' : ''}`);
+                    if (reloaded) return;
+                    try { sessionStorage.setItem('tnr.userListRepaired', '1'); } catch (e) { /* private mode */ }
+                    // Jellyfin may have written its in-memory copy back meanwhile: clean again, then reload.
+                    setTimeout(() => cleanSavedUserList(() => location.reload()), 1200);
+                }, 40);
+            });
+        }
 
         // axios (what Jellyfin's newer screens use) reads responseText and parses it itself.
         try {
