@@ -645,8 +645,9 @@ html.tnr-gliding .mainAnimatedPages { pointer-events: none; }
 .tnr-bk-arrow:hover, .tnr-bk-arrow:focus-visible { background: var(--tnr-raise); }
 .tnr-bk-arrow.prev { left: -.6em; }
 .tnr-bk-arrow.next { right: -.6em; }
-/* Touch screens swipe; the arrows would only cover books there. */
-@media (hover: none) { .tnr-bk-arrow { display: none; } }
+/* Touch screens swipe; the arrows would only cover books there. Keyed on a touch pointer, not
+   just "can't hover": some desktop browsers report no hover (headless Firefox did). */
+@media (hover: none) and (pointer: coarse) { .tnr-bk-arrow { display: none; } }
 
 .tnr-bk-shelf { margin-bottom: 2em; }
 .tnr-bk-shelf h2, .tnr-bk-head { font-size: 1.2em; font-weight: 600; margin: 0 0 .7em; }
