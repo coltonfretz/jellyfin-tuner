@@ -691,8 +691,10 @@ public class BooksService
         }
 
         // The grab the file came from, found before the file goes (the history stays either way).
-        var history = await Bookshelf(HttpMethod.Get, $"history/book?bookId={b.BookshelfId}", null, ct).ConfigureAwait(false) as JsonArray;
-        var grab = history?.OfType<JsonObject>()
+        // Bookshelf has no history/book (404, found by the first real Replace, 2026-11-23): the
+        // paged history list filtered by bookId, records under "records".
+        var history = await Bookshelf(HttpMethod.Get, $"history?bookId={b.BookshelfId}&pageSize=50&sortKey=date&sortDirection=descending", null, ct).ConfigureAwait(false) as JsonObject;
+        var grab = (history?["records"] as JsonArray)?.OfType<JsonObject>()
             .Where(h => h["eventType"]?.ToString() == "grabbed")
             .OrderByDescending(h => h["date"]?.ToString(), StringComparer.Ordinal)
             .FirstOrDefault();
