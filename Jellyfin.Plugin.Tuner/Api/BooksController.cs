@@ -80,8 +80,10 @@ public class BooksController : ControllerBase
             return Json(new { books = Array.Empty<BookCard>(), states = new Dictionary<int, BookState>() });
         }
 
-        var books = await _books.SearchAsync(q, ct).ConfigureAwait(false);
-        return Json(new { books, states = await SafeStates(books.Select(b => b.Id), ct).ConfigureAwait(false) });
+        var all = await _books.SearchAsync(q, ct).ConfigureAwait(false);
+        var states = await SafeStates(all.Select(b => b.Id), ct).ConfigureAwait(false);
+        var books = BooksService.OnePerBook(all, states.Keys);
+        return Json(new { books, states });
     });
 
     [HttpGet("{id:int}")]

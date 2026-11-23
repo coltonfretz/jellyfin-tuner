@@ -167,6 +167,37 @@ public class BooksService
         }).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// One card per book: Hardcover lists editions separately, so "frankenstein" showed six
+    /// identical "Frankenstein, Mary Shelley" cards (2026-11-23). Cards with the same title and
+    /// first author become one, shown where the first of them ranked. The one kept is one
+    /// Bookshelf already knows (so "In the library" or a download in progress isn't hidden
+    /// behind another edition), else the most read.
+    /// </summary>
+    public static List<BookCard> OnePerBook(List<BookCard> cards, ICollection<int> known)
+    {
+        var groups = cards.GroupBy(c => (Norm(c.Title), Norm(FirstAuthor(c.Authors)))).ToList();
+        var keep = groups.ToDictionary(
+            g => g.Key,
+            g => g.OrderByDescending(c => known.Contains(c.Id)).ThenByDescending(c => c.Readers).First());
+        return groups.Select(g => keep[g.Key]).ToList();
+    }
+
+    private static string FirstAuthor(string authors)
+    {
+        var first = authors.Split(", ")[0];
+        var and = first.IndexOf(" and ", StringComparison.Ordinal);
+        return and > 0 ? first[..and] : first;
+    }
+
+    // Lowercase letters and digits only, single spaces: "Pride & Prejudice" = "pride and prejudice".
+    private static string Norm(string s)
+    {
+        var t = s.ToLowerInvariant().Replace("&", " and ", StringComparison.Ordinal);
+        return string.Join(' ', new string(t.Select(c => char.IsLetterOrDigit(c) ? c : ' ').ToArray())
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
     /// <summary>A shelf for the front of the page: "new" (popular, out this year or last) or "loved" (most read ever).</summary>
     public async Task<List<BookCard>> ShelfAsync(string name, CancellationToken ct)
     {
