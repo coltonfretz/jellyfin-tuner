@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.14.0",
+        "changelog": "Books: Read signs you in to the reader as yourself",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v1.0.14.0/tuner_1.0.14.0.zip",
+        "checksum": "806ccf525e312ba6c2478060f4fb2bf5",
+        "timestamp": "2026-11-23T07:50:42Z"
+      },
+      {
         "version": "1.0.13.1",
         "changelog": "Books: shelves and book pages show their details",
         "targetAbi": "12.2.0.0",
