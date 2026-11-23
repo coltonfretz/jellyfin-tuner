@@ -80,7 +80,10 @@
         // request, yet the saved user list wasn't a list, and Ctrl+Shift+R doesn't clear
         // IndexedDB. So: drop just that one bad entry, log what it was, and reload once so
         // Jellyfin starts without it. Everything else in the cache is left alone.
-        // Removes bad saved user lists; calls done(count, shape) when finished (0 if none).
+        // 2026-11-23: the same happened to the saved session list ("Sessions"), which the
+        // admin Dashboard's Devices panel draws ("e.map is not a function"; a fresh browser was
+        // fine). So every saved query Jellyfin expects a list from is checked, not just Users.
+        // Removes bad saved lists; calls done(count, shape) when finished (0 if none).
         function cleanSavedUserList(done) {
             let req;
             try { req = indexedDB.open('keyval-store'); } catch (e) { done(0); return; }
@@ -99,12 +102,14 @@
                         const saved = get.result;
                         const queries = saved && saved.clientState && saved.clientState.queries;
                         if (!Array.isArray(queries)) return;
-                        const bad = queries.filter((q) => q && Array.isArray(q.queryKey) && q.queryKey.length === 1
-                            && q.queryKey[0] === 'Users' && q.state && q.state.data != null && !Array.isArray(q.state.data));
+                        const LISTS = ['Users', 'Sessions', 'Tasks', 'ConfigurationPages'];
+                        const bad = queries.filter((q) => q && Array.isArray(q.queryKey) && LISTS.indexOf(q.queryKey[0]) >= 0
+                            && (q.queryKey[0] !== 'Users' || q.queryKey.length === 1)
+                            && q.state && q.state.data != null && !Array.isArray(q.state.data));
                         if (!bad.length) return;
                         const d = bad[0].state.data;
                         try { shape = JSON.stringify(d); } catch (e) { shape = String(d); }
-                        shape = `${typeof d} ${d && d.constructor && d.constructor.name}: ${shape}`;
+                        shape = `${bad[0].queryKey[0]}: ${typeof d} ${d && d.constructor && d.constructor.name}: ${shape}`;
                         count = bad.length;
                         saved.clientState.queries = queries.filter((q) => bad.indexOf(q) < 0);
                         store.put(saved, 'jellyfin-query-cache');
