@@ -320,12 +320,30 @@
         }
         box.innerHTML = html;
         const read = $('a.tnr-bk-btn', box);
-        // The desktop and phone apps can't open new windows: hand the address to the system browser.
+        // Read signs you in to the reader as yourself: the server hands out a one-time ticket
+        // (POST Tuner/books/read) and the address carries it. If that fails, the plain address
+        // still opens the reader, at its own login page. The desktop and phone apps can't open
+        // new windows, so they hand the address to the system browser. A browser gets its window
+        // opened right away, inside the click: one opened after waiting for the server counts as
+        // a pop-up and gets blocked.
         if (read) {
-            read.addEventListener('click', (e) => {
-                if (window.NativeShell && typeof window.NativeShell.openUrl === 'function') {
-                    e.preventDefault();
-                    window.NativeShell.openUrl(read.href, '_blank');
+            read.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const native = window.NativeShell && typeof window.NativeShell.openUrl === 'function';
+                const win = native ? null : window.open('', '_blank');
+                let url = read.href;
+                try {
+                    const u = new URL(read.href);
+                    const res = await ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('Tuner/books/read', { next: u.pathname + u.search }), dataType: 'json' });
+                    if (res && res.url) url = res.url;
+                } catch (err) { /* open the plain address */ }
+                if (native) {
+                    window.NativeShell.openUrl(url, '_blank');
+                } else if (win) {
+                    win.opener = null;
+                    win.location.href = url;
+                } else {
+                    location.href = url;
                 }
             });
         }

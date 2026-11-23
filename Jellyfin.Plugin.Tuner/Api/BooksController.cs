@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.Tuner.Services;
+using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -16,11 +17,13 @@ namespace Jellyfin.Plugin.Tuner.Api;
 public class BooksController : ControllerBase
 {
     private readonly BooksService _books;
+    private readonly IUserManager _users;
     private readonly ILogger<BooksController> _logger;
 
-    public BooksController(BooksService books, ILogger<BooksController> logger)
+    public BooksController(BooksService books, IUserManager users, ILogger<BooksController> logger)
     {
         _books = books;
+        _users = users;
         _logger = logger;
     }
 
@@ -122,6 +125,56 @@ public class BooksController : ControllerBase
         var (ok, message) = await _books.RetryAsync(id, UserName, ct).ConfigureAwait(false);
         return new JsonResult(new { message }, WebJson) { StatusCode = ok ? 200 : 409 };
     });
+
+    /// <summary>
+    /// The Read button's address with a one-time ticket that signs you in to the reading site as
+    /// your Jellyfin name (see BooksService.MintTicket). next is the reader page to land on.
+    /// </summary>
+    [HttpPost("read")]
+    public ActionResult Read([FromQuery] string? next)
+    {
+        var read = BooksService.ReadBase;
+        if (!BooksService.Enabled || read == null)
+        {
+            return Json(new { enabled = false });
+        }
+
+        // Only a path on the reading site: never a way to send someone elsewhere.
+        if (string.IsNullOrEmpty(next) || next[0] != '/' || next.StartsWith("//", StringComparison.Ordinal) || next.Contains('\\'))
+        {
+            next = "/";
+        }
+
+        // The name from the account itself, not the request: it becomes a login on the reader.
+        var id = Guid.TryParse(User.FindFirst("Jellyfin-UserId")?.Value, out var g) ? g : Guid.Empty;
+        var name = id == Guid.Empty ? null : _users.GetUserById(id)?.Username;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return new JsonResult(new { message = "Couldn't tell who you are. Sign in again." }, WebJson) { StatusCode = 401 };
+        }
+
+        var ticket = BooksService.MintTicket(name);
+        return Json(new { url = $"{read}/_fretzflix/sso?t={ticket}&next={Uri.EscapeDataString(next)}" });
+    }
+
+    /// <summary>
+    /// For the reading site's gatekeeper, server to server: who a ticket belongs to. Anonymous
+    /// because the gatekeeper has no Jellyfin login; a ticket is 256 random bits, works once and
+    /// for 60 seconds, so there is nothing to guess.
+    /// </summary>
+    [HttpGet("redeem")]
+    [AllowAnonymous]
+    public ActionResult Redeem([FromQuery] string? t)
+    {
+        var user = BooksService.RedeemTicket(t);
+        if (user == null)
+        {
+            return new JsonResult(new { message = "Unknown or used ticket." }, WebJson) { StatusCode = 404 };
+        }
+
+        _logger.LogInformation("Books: {User} opened the reading site", user);
+        return Json(new { user });
+    }
 
     // The Read button opens the reading site's search for the title. WHY a search and not the
     // book's own page: the reader (Calibre-Web) numbers books itself and only gets the file

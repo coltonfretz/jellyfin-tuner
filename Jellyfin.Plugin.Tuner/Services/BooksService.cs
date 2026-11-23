@@ -62,6 +62,40 @@ public class BooksService
         }
     }
 
+    // Read-as-yourself tickets (2026-11-23). WHY: the reading site keeps its own accounts, and
+    // people shouldn't need a second login. "Read" gets a ticket here; a gatekeeper in front of
+    // the reader trades it (server to server, see RedeemTicket) for the Jellyfin username and
+    // signs the person in as that name. Random, single use, 60 seconds: a ticket rides in a URL,
+    // so one that leaks into a history list is already spent. Memory only: a Jellyfin restart
+    // just means clicking Read again.
+    private static readonly TimeSpan TicketLife = TimeSpan.FromSeconds(60);
+    private static readonly ConcurrentDictionary<string, (string User, DateTime Until)> Tickets = new(StringComparer.Ordinal);
+
+    public static string MintTicket(string user)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var old in Tickets.Where(kv => kv.Value.Until < now).Select(kv => kv.Key).ToList())
+        {
+            Tickets.TryRemove(old, out _);
+        }
+
+        var ticket = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        Tickets[ticket] = (user, now + TicketLife);
+        return ticket;
+    }
+
+    /// <summary>The username a ticket was made for, once; null when unknown, used or expired.</summary>
+    public static string? RedeemTicket(string? ticket)
+    {
+        if (string.IsNullOrEmpty(ticket) || !Tickets.TryRemove(ticket, out var t))
+        {
+            return null;
+        }
+
+        return t.Until >= DateTime.UtcNow ? t.User : null;
+    }
+
     /// <summary>The Read button's site, only when it's an http(s) address (it becomes a link).</summary>
     public static string? ReadBase
     {
