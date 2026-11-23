@@ -574,6 +574,7 @@ public class BooksService
                 _logger.LogInformation("Books: {User} asked for Hardcover {Id} (author already in Bookshelf)", user, id);
             }
 
+            await EnglishEditionAsync(have.BookshelfId, id, ct).ConfigureAwait(false);
             await Bookshelf(HttpMethod.Post, "command", new JsonObject { ["name"] = "BookSearch", ["bookIds"] = new JsonArray(have.BookshelfId) }, ct).ConfigureAwait(false);
             _library = null;
             return (true, fresh ? "Added. Looking for a copy now." : "Looking for it again.");
@@ -609,7 +610,9 @@ public class BooksService
         // add a book (an empty edition list is a 500). Only this book is wanted: the author's
         // other books are added unmonitored, so they don't all download.
         book["monitored"] = true;
-        book["addOptions"] = new JsonObject { ["searchForNewBook"] = true };
+        // No search on add: the edition gets checked first (EnglishEditionAsync), because the
+        // indexer search uses the chosen edition's title.
+        book["addOptions"] = new JsonObject { ["searchForNewBook"] = false };
         book["editions"] = new JsonArray(new JsonObject
         {
             ["foreignEditionId"] = book["foreignEditionId"]?.ToString(),
@@ -626,9 +629,10 @@ public class BooksService
             ["monitorNewItems"] = "none",
             ["addOptions"] = new JsonObject { ["monitor"] = "none", ["searchForMissingBooks"] = false },
         };
+        JsonNode? added;
         try
         {
-            await Bookshelf(HttpMethod.Post, "book", book, ct).ConfigureAwait(false);
+            added = await Bookshelf(HttpMethod.Post, "book", book, ct).ConfigureAwait(false);
         }
         catch (BooksException)
         {
@@ -644,9 +648,84 @@ public class BooksService
         }
 
         _library = null;
+        var newId = Int(added?["id"]);
+        if (newId == null && (await LibraryAsync(true, ct).ConfigureAwait(false)).TryGetValue(id, out var nb))
+        {
+            newId = nb.BookshelfId;
+        }
+
+        if (newId is int bid)
+        {
+            await EnglishEditionAsync(bid, id, ct).ConfigureAwait(false);
+            await Bookshelf(HttpMethod.Post, "command", new JsonObject { ["name"] = "BookSearch", ["bookIds"] = new JsonArray(bid) }, ct).ConfigureAwait(false);
+        }
+
         TakeAllowance(user);
         _logger.LogInformation("Books: {User} asked for {Title} (Hardcover {Id})", user, detail.Title, id);
         return (true, "Added. Looking for a copy now.");
+    }
+
+    /// <summary>
+    /// Makes sure Bookshelf wants an English edition of the book (2026-11-23). Its metadata
+    /// source hands back one "default" edition that can be any language: Animal Farm came in as
+    /// the French "La Ferme des animaux", The Martian as the German "Der Marsianer". Bookshelf
+    /// names the book after that edition and searches the indexers by its title, so the search
+    /// found nothing. Picks Hardcover's default ebook/physical edition when it's English, else
+    /// its most-read English edition that Bookshelf also lists. Best effort: on any failure the
+    /// book keeps the edition it has.
+    /// </summary>
+    private async Task EnglishEditionAsync(int bookshelfId, int hardcoverId, CancellationToken ct)
+    {
+        try
+        {
+            if (await Bookshelf(HttpMethod.Get, "edition?bookId=" + bookshelfId, null, ct).ConfigureAwait(false) is not JsonArray eds)
+            {
+                return;
+            }
+
+            var current = eds.OfType<JsonObject>().FirstOrDefault(e => e["monitored"]?.GetValue<bool>() == true);
+            if (current?["language"]?.ToString() == "eng")
+            {
+                return;
+            }
+
+            var data = await Hardcover(
+                "query($id:Int!){ books_by_pk(id:$id){ default_ebook_edition_id default_physical_edition_id editions(where:{language:{code3:{_eq:\"eng\"}}}, order_by:{users_count:desc}, limit:40){ id } } }",
+                new JsonObject { ["id"] = hardcoverId },
+                ct).ConfigureAwait(false);
+            var english = (data?["books_by_pk"]?["editions"] as JsonArray)?.Select(e => e?["id"]?.ToString()).Where(x => x != null).ToList() ?? new List<string?>();
+            var ranked = new[] { data?["books_by_pk"]?["default_ebook_edition_id"]?.ToString(), data?["books_by_pk"]?["default_physical_edition_id"]?.ToString() }
+                .Where(english.Contains).Concat(english);
+            var listed = eds.OfType<JsonObject>().GroupBy(e => e["foreignEditionId"]?.ToString() ?? string.Empty, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            var pick = ranked.Select(x => listed.GetValueOrDefault(x ?? string.Empty)).FirstOrDefault(e => e != null && (e["language"]?.ToString() ?? string.Empty) is "eng" or "");
+            if (pick == null || ReferenceEquals(pick, current))
+            {
+                if (pick == null && !string.IsNullOrEmpty(current?["language"]?.ToString()))
+                {
+                    _logger.LogWarning("Books: Bookshelf book {Id} is a {Lang} edition and no English one is listed", bookshelfId, current?["language"]);
+                }
+
+                return;
+            }
+
+            if (await Bookshelf(HttpMethod.Get, "book/" + bookshelfId, null, ct).ConfigureAwait(false) is not JsonObject full)
+            {
+                return;
+            }
+
+            foreach (var e in eds.OfType<JsonObject>())
+            {
+                e["monitored"] = ReferenceEquals(e, pick);
+            }
+
+            full["editions"] = eds.DeepClone();
+            await Bookshelf(HttpMethod.Put, "book/" + bookshelfId, full, ct).ConfigureAwait(false);
+            _logger.LogInformation("Books: switched Bookshelf book {Id} from \"{From}\" ({Lang}) to the English edition \"{To}\"", bookshelfId, current?["title"], current?["language"], pick["title"]);
+        }
+        catch (Exception ex) when (ex is BooksException or HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            _logger.LogWarning("Books: couldn't check the edition of Bookshelf book {Id}: {Error}", bookshelfId, ex.Message);
+        }
     }
 
     /// <summary>"Wrong book? Try another copy": drop the current download, block that file, search again.</summary>
