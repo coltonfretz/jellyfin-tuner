@@ -376,7 +376,9 @@
                 + `<div class="tnr-bk-status have"><span class="material-icons" aria-hidden="true">check_circle</span>In the library</div>`
                 // Only for a book that just arrived while you watched: the reader picks it up
                 // a couple of minutes after the download (shown on every old book before).
-                + (B.book.read && B.book.arrived ? '<div class="tnr-bk-hint">Just arrived: it can take a couple of minutes to show up in the reader.</div>' : '');
+                + (B.book.read && B.book.arrived ? '<div class="tnr-bk-hint">Just arrived: it can take a couple of minutes to show up in the reader.</div>' : '')
+                // A download can be the wrong book (or a bad file) even after it's in.
+                + '<button type="button" class="tnr-bk-link" data-do="replace">Wrong book? Replace it</button>';
         } else if (state === 'downloading' || state === 'problem') {
             const pct = Math.round((st.progress || 0) * 100);
             html = state === 'problem'
@@ -431,10 +433,12 @@
 
     async function act(btn, what) {
         if (!B.book || btn.disabled) return;
+        // Replace removes the copy everyone reads, so it asks first.
+        if (what === 'replace' && !window.confirm('Remove this copy from the library for everyone and look for a different one? Use this if the file is the wrong book or won’t open.')) return;
         const id = B.book.id;
         btn.disabled = true;
         try {
-            const res = await post(`Tuner/books/${id}/${what === 'retry' ? 'retry' : 'get'}`);
+            const res = await post(`Tuner/books/${id}/${what === 'retry' || what === 'replace' ? what : 'get'}`);
             if (res && res.state) B.states[id] = res.state;
             else if (what === 'retry') B.states[id] = { state: 'searching' };
             if (res && res.message) toast(res.message);

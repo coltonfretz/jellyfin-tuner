@@ -1,3 +1,5 @@
+using Jellyfin.Data;
+using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Tuner.Services;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
@@ -130,6 +132,18 @@ public class BooksController : ControllerBase
         return Json(new { message, state = states.GetValueOrDefault(id) ?? new BookState { State = "searching" } });
     });
 
+    [HttpPost("{id:int}/replace")]
+    public Task<ActionResult> Replace(int id, CancellationToken ct) => Guarded(async () =>
+    {
+        var (ok, message) = await _books.ReplaceAsync(id, UserName, ct).ConfigureAwait(false);
+        if (!ok)
+        {
+            return new JsonResult(new { message }, WebJson) { StatusCode = 409 };
+        }
+
+        return Json(new { message, state = new BookState { State = "searching" } });
+    });
+
     [HttpPost("{id:int}/retry")]
     public Task<ActionResult> Retry(int id, CancellationToken ct) => Guarded(async () =>
     {
@@ -164,7 +178,7 @@ public class BooksController : ControllerBase
             return new JsonResult(new { message = "Couldn't tell who you are. Sign in again." }, WebJson) { StatusCode = 401 };
         }
 
-        var ticket = BooksService.MintTicket(name);
+        var ticket = BooksService.MintTicket(name, id);
         return Json(new { url = $"{read}/_fretzflix/sso?t={ticket}&next={Uri.EscapeDataString(next)}" });
     }
 
@@ -188,14 +202,33 @@ public class BooksController : ControllerBase
             return new JsonResult(new { message = "Unknown or used ticket." }, WebJson) { StatusCode = 404 };
         }
 
-        var user = BooksService.RedeemTicket(t);
-        if (user == null)
+        if (BooksService.RedeemTicket(t) is not { } who)
         {
             return new JsonResult(new { message = "Unknown or used ticket." }, WebJson) { StatusCode = 404 };
         }
 
-        _logger.LogInformation("Books: {User} opened the reading site", user);
-        return Json(new { user });
+        _logger.LogInformation("Books: {User} opened the reading site", who.User);
+        return Json(new { user = who.User, id = who.Id.ToString("N") });
+    }
+
+    /// <summary>
+    /// For the reading site's gatekeeper, server to server, about once an hour per person: is
+    /// this account still here and allowed in, and under what name? WHY: its sign-in cookie
+    /// would otherwise keep working after an account is deleted or disabled (review,
+    /// 2026-11-23). Inside-only like Redeem; answers nothing but yes/no and the name.
+    /// </summary>
+    [HttpGet("who")]
+    [AllowAnonymous]
+    public ActionResult Who([FromQuery] string? id)
+    {
+        if (!FromInside())
+        {
+            return new JsonResult(new { message = "Not here." }, WebJson) { StatusCode = 404 };
+        }
+
+        var user = Guid.TryParse(id, out var g) ? _users.GetUserById(g) : null;
+        var ok = user != null && !user.HasPermission(PermissionKind.IsDisabled);
+        return Json(new { ok, user = ok ? user!.Username : null });
     }
 
     // The Read button opens the reading site's search for the title. WHY a search and not the

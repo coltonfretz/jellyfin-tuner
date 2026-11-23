@@ -69,9 +69,11 @@ public class BooksService
     // so one that leaks into a history list is already spent. Memory only: a Jellyfin restart
     // just means clicking Read again.
     private static readonly TimeSpan TicketLife = TimeSpan.FromSeconds(60);
-    private static readonly ConcurrentDictionary<string, (string User, DateTime Until)> Tickets = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, (string User, Guid Id, DateTime Until)> Tickets = new(StringComparer.Ordinal);
 
-    public static string MintTicket(string user)
+    // The account id rides along so the reader can later ask whether the account still exists
+    // and is enabled (BooksController.Who), not just trust the name.
+    public static string MintTicket(string user, Guid id)
     {
         var now = DateTime.UtcNow;
         foreach (var old in Tickets.Where(kv => kv.Value.Until < now).Select(kv => kv.Key).ToList())
@@ -81,19 +83,19 @@ public class BooksService
 
         var ticket = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        Tickets[ticket] = (user, now + TicketLife);
+        Tickets[ticket] = (user, id, now + TicketLife);
         return ticket;
     }
 
-    /// <summary>The username a ticket was made for, once; null when unknown, used or expired.</summary>
-    public static string? RedeemTicket(string? ticket)
+    /// <summary>The username and account id a ticket was made for, once; null when unknown, used or expired.</summary>
+    public static (string User, Guid Id)? RedeemTicket(string? ticket)
     {
         if (string.IsNullOrEmpty(ticket) || !Tickets.TryRemove(ticket, out var t))
         {
             return null;
         }
 
-        return t.Until >= DateTime.UtcNow ? t.User : null;
+        return t.Until >= DateTime.UtcNow ? (t.User, t.Id) : null;
     }
 
     /// <summary>The Read button's site, only when it's an http(s) address (it becomes a link).</summary>
@@ -665,6 +667,63 @@ public class BooksService
 
         await Bookshelf(HttpMethod.Post, "command", new JsonObject { ["name"] = "BookSearch", ["bookIds"] = new JsonArray(b.BookshelfId) }, ct).ConfigureAwait(false);
         return (true, "Looking for another copy.");
+    }
+
+    /// <summary>
+    /// "Wrong book? Replace it" on a book in the library (2026-11-23). Deletes Bookshelf's copy,
+    /// marks the download it came from as failed (Bookshelf blocks that release and searches
+    /// again by itself: "redownload failed" is on), and asks for a search too. The reader's copy
+    /// goes when the reading site's feeder sees the file gone (set up outside this plugin). Counts toward
+    /// the daily allowance: it's a new download for the shared library.
+    /// </summary>
+    public async Task<(bool Ok, string Message)> ReplaceAsync(int id, string user, CancellationToken ct)
+    {
+        var c = Config!;
+        var library = await LibraryAsync(true, ct).ConfigureAwait(false);
+        if (!library.TryGetValue(id, out var b) || !b.HasFile)
+        {
+            return (false, "This book isn't in the library.");
+        }
+
+        if (!HasAllowance(user, c.BooksPerUserPerDay))
+        {
+            return (false, $"That's {c.BooksPerUserPerDay} books today. Try again tomorrow.");
+        }
+
+        // The grab the file came from, found before the file goes (the history stays either way).
+        var history = await Bookshelf(HttpMethod.Get, $"history/book?bookId={b.BookshelfId}", null, ct).ConfigureAwait(false) as JsonArray;
+        var grab = history?.OfType<JsonObject>()
+            .Where(h => h["eventType"]?.ToString() == "grabbed")
+            .OrderByDescending(h => h["date"]?.ToString(), StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        var files = await Bookshelf(HttpMethod.Get, $"bookfile?bookId={b.BookshelfId}", null, ct).ConfigureAwait(false) as JsonArray;
+        foreach (var f in files?.OfType<JsonObject>() ?? Enumerable.Empty<JsonObject>())
+        {
+            if (Int(f["id"]) is int fileId)
+            {
+                await Bookshelf(HttpMethod.Delete, $"bookfile/{fileId}", null, ct).ConfigureAwait(false);
+            }
+        }
+
+        if (Int(grab?["id"]) is int grabId)
+        {
+            try
+            {
+                await Bookshelf(HttpMethod.Post, $"history/failed/{grabId}", null, ct).ConfigureAwait(false);
+            }
+            catch (BooksException ex)
+            {
+                // Still worth searching: it may pick the same release, but the file is gone.
+                _logger.LogWarning("Books: couldn't block the old download for Hardcover {Id}: {Message}", id, ex.Message);
+            }
+        }
+
+        await Bookshelf(HttpMethod.Post, "command", new JsonObject { ["name"] = "BookSearch", ["bookIds"] = new JsonArray(b.BookshelfId) }, ct).ConfigureAwait(false);
+        TakeAllowance(user);
+        _library = null;
+        _logger.LogInformation("Books: {User} replaced the copy of Hardcover {Id} (old release \"{Release}\")", user, id, grab?["sourceTitle"]?.ToString() ?? "unknown");
+        return (true, "Removed that copy. Looking for another one.");
     }
 
     private async Task<Dictionary<int, LibraryBook>> LibraryAsync(bool fresh, CancellationToken ct)
