@@ -168,6 +168,40 @@ public class PluginConfiguration : BasePluginConfiguration
     public string RequestUrl { get; set; } = string.Empty;
 
     /// <summary>
+    /// The Books page (2026-11-23): a store-like page to search books (Hardcover's catalog) and
+    /// add one to the library with "Get it", which hands it to Bookshelf (a Readarr fork) to
+    /// find and download. Needs <see cref="HardcoverToken"/>, <see cref="BookshelfUrl"/> and
+    /// <see cref="BookshelfApiKey"/>. Off by default.
+    /// </summary>
+    public bool BooksPage { get; set; }
+
+    /// <summary>
+    /// Hardcover API token (hardcover.app -> Settings -> Hardcover API), with or without the
+    /// "Bearer " in front. Server-side only; browsers never get it. WHY Hardcover and not
+    /// Bookshelf's own search: Bookshelf fetches every result's details before it answers
+    /// (30-65 s per search, measured 2026-11-23); Hardcover's search answers in 0.3 s.
+    /// </summary>
+    public string HardcoverToken { get; set; } = string.Empty;
+
+    /// <summary>Bookshelf's address as the Jellyfin server reaches it, for example http://bookshelf:8787.</summary>
+    public string BookshelfUrl { get; set; } = string.Empty;
+
+    /// <summary>Bookshelf API key (Settings -> General). Server-side only.</summary>
+    public string BookshelfApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Where people read the books (Calibre-Web or Calibre-Web-Automated), for the "Read"
+    /// button. Empty: no Read button, the page just says the book is in the library.
+    /// </summary>
+    public string BooksReadUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Most books one person can add with "Get it" per 24 hours; 0 for no limit. WHY: everyone
+    /// can add books, and a stray double-click or a curious friend shouldn't queue a shelf.
+    /// </summary>
+    public int BooksPerUserPerDay { get; set; } = 10;
+
+    /// <summary>
     /// Discord webhook for song requests (2026-11-14). Set: the Music page's Search tab gets a
     /// "Don't see a song? Request it" box taking a Spotify or YouTube link, which the server
     /// checks, tidies and posts here. Only the server uses it; browsers never get it.

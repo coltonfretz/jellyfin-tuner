@@ -137,6 +137,14 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     tags += $"<script src=\"../Tuner/music.js?v={v}\" data-min-songs=\"{min}\" data-requests=\"{req}\" defer></script>";
                 }
 
+                if (Services.BooksService.Enabled)
+                {
+                    // After client.js, like music.js: tuner.js looks for this tag to add the
+                    // Books link (before Request). Only when it's fully set up, so a half-set
+                    // page never shows a link that leads nowhere.
+                    tags += $"<script src=\"../Tuner/books.js?v={v}\" defer></script>";
+                }
+
                 if (config?.SmoothScrolling == true)
                 {
                     var ignoreReduced = config.SmoothIgnoreReducedMotion ? " data-ignore-reduced=\"1\"" : string.Empty;

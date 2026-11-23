@@ -32,6 +32,7 @@
                         <button type="button" role="tab" data-tab="sources">Radio &amp; TV</button>
                         <button type="button" role="tab" data-tab="layout">Layout</button>
                         <button type="button" role="tab" data-tab="home">Home</button>
+                        <button type="button" role="tab" data-tab="books">Books</button>
                         <button type="button" role="tab" data-tab="apps">Apps</button>
                         <button type="button" role="tab" data-tab="together">Watch together</button>
                     </div>
@@ -143,6 +144,37 @@
                     </div>
                     </div>
 
+                    <div class="tnr-cfg-tab" data-tab="books" role="tabpanel">
+                    <h2>Books</h2>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="BooksPage" />
+                            <span>Add a Books page</span>
+                        </label>
+                    </div>
+                    <div class="fieldDescription">A store-like page, next to Request: search for any book (Hardcover's catalog, with covers, ratings and series) and press Get it to add it to the library. Bookshelf then finds a copy and downloads it. Everyone signed in can use it. The link only shows once the token, address and key below are all set.</div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="password" id="HardcoverToken" label="Hardcover API token" autocomplete="off" />
+                        <div class="fieldDescription" id="tnrHardcoverState">From hardcover.app, Settings, Hardcover API. Only the server uses it.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="BookshelfUrl" label="Bookshelf address" />
+                        <div class="fieldDescription">As this server reaches it, for example http://bookshelf:8787. Bookshelf is a revival of Readarr; set it up like Radarr (download client, root folder, Prowlarr).</div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="password" id="BookshelfApiKey" label="Bookshelf API key" autocomplete="off" />
+                        <div class="fieldDescription" id="tnrBookshelfState">Bookshelf, Settings, General. Only the server uses it.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="BooksReadUrl" label="Reading site address" />
+                        <div class="fieldDescription">Where people read the books, for example your Calibre-Web, https://books.example.com. A book in the library gets a Read button that opens it there. Empty: no Read button.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="BooksPerUserPerDay" label="Books one person can add per day" min="0" max="500" />
+                        <div class="fieldDescription">0 for no limit.</div>
+                    </div>
+                    </div>
+
                     <div class="tnr-cfg-tab" data-tab="apps" role="tabpanel">
                     <h2>Get apps</h2>
                     <div class="checkboxContainer">
@@ -235,7 +267,7 @@
         <script type="text/javascript">
             (function () {
                 var pluginId = '6d5e2f2a-5308-427c-9e34-42892a8fe0cc';
-                var text = ['RadioM3uUrl', 'JamendoClientId', 'JamendoKeepFolder', 'DispatcharrUrl', 'HdhomerunUrl', 'AntennaHidden', 'AntennaNames', 'Seasons', 'TvClassicsLibrary', 'MoviesClassicsLibrary', 'RequestUrl'];
+                var text = ['RadioM3uUrl', 'JamendoClientId', 'JamendoKeepFolder', 'DispatcharrUrl', 'HdhomerunUrl', 'AntennaHidden', 'AntennaNames', 'Seasons', 'TvClassicsLibrary', 'MoviesClassicsLibrary', 'RequestUrl', 'BookshelfUrl', 'BooksReadUrl'];
                 var page = document.querySelector('#TunerConfigPage');
 
                 // Tabs: the last one opened is remembered for this browser only.
@@ -330,6 +362,16 @@
                         page.querySelector('#tnrHookState').textContent = config.SongRequestWebhook
                             ? 'A webhook is saved: the Request it box is on. Paste a new one only to replace it; type off to remove it.'
                             : 'Not set: no Request it box. Paste a Discord webhook URL to turn it on.';
+                        page.querySelector('#HardcoverToken').value = '';
+                        page.querySelector('#tnrHardcoverState').textContent = config.HardcoverToken
+                            ? 'A token is saved. Paste a new one only to replace it. Only the server uses it.'
+                            : 'Not set. From hardcover.app, Settings, Hardcover API. Only the server uses it.';
+                        page.querySelector('#BookshelfApiKey').value = '';
+                        page.querySelector('#tnrBookshelfState').textContent = config.BookshelfApiKey
+                            ? 'A key is saved. Paste a new one only to replace it. Only the server uses it.'
+                            : 'Not set. Bookshelf, Settings, General. Only the server uses it.';
+                        page.querySelector('#BooksPage').checked = !!config.BooksPage;
+                        page.querySelector('#BooksPerUserPerDay').value = config.BooksPerUserPerDay == null ? 10 : config.BooksPerUserPerDay;
                         page.querySelector('#DisableInjection').checked = !!config.DisableInjection;
                         page.querySelector('#RotateLatestRows').checked = config.RotateLatestRows !== false;
                         page.querySelector('#MixMusicArtists').checked = config.MixMusicArtists !== false;
@@ -363,6 +405,13 @@
                         var hook = page.querySelector('#SongRequestWebhook').value.trim();
                         if (hook.toLowerCase() === 'off') config.SongRequestWebhook = '';
                         else if (hook) config.SongRequestWebhook = hook;
+                        var hcToken = page.querySelector('#HardcoverToken').value.trim();
+                        if (hcToken) config.HardcoverToken = hcToken;
+                        var bsKey = page.querySelector('#BookshelfApiKey').value.trim();
+                        if (bsKey) config.BookshelfApiKey = bsKey;
+                        config.BooksPage = page.querySelector('#BooksPage').checked;
+                        var perDay = parseInt(page.querySelector('#BooksPerUserPerDay').value, 10);
+                        config.BooksPerUserPerDay = isNaN(perDay) ? 10 : Math.min(500, Math.max(0, perDay));
                         config.DisableInjection = page.querySelector('#DisableInjection').checked;
                         config.RotateLatestRows = page.querySelector('#RotateLatestRows').checked;
                         config.MixMusicArtists = page.querySelector('#MixMusicArtists').checked;

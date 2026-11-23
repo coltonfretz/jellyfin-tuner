@@ -32,6 +32,7 @@ Every part is off until you set it up.
 
 - **TV:** one link with **Surf**, **Guide** and **Classics** tabs (Classics is a TV library you pick). Networks show as colored name tiles instead of logos, which most small networks don't have.
 - **Movies:** **Library** and **Classics** tabs for a second movie library.
+- **Books:** a store-like page for books. Search millions of them (the [Hardcover](https://hardcover.app) catalog, with covers, ratings and series), open one, and press **Get it**: [Bookshelf](https://github.com/pennydreadful/bookshelf) (a revival of Readarr) finds a copy and downloads it into your library, like Radarr does for movies. The book's page follows it from "Looking for a copy" to downloading (with the file's name, and **Wrong book? Try another copy**) to **Read**, which opens it on your reading site (Calibre-Web, for example). Everyone signed in can add books, up to a daily limit.
 - **Request:** a link to your Seerr or Jellyseerr site. Opens inside Jellyfin when both share a site (`requests.example.com` and `example.com`, https), otherwise in a new tab. Searches that find nothing offer **Can't find it? Request it**.
 
 - **Get apps:** a row in the settings menu (avatar -> Profile, Display ...) opening the apps you list, the ones for the device you're on first. GitHub projects get their newest release's file for that device.
@@ -108,7 +109,7 @@ Then set it up in Dashboard -> Plugins -> Jellyfin-Tuned and reload the web UI.
 
 ## Settings
 
-Four tabs. **Turn off the pages** (below them) hides everything without uninstalling.
+Six tabs. **Turn off the pages** (below them) hides everything without uninstalling.
 
 **Radio & TV**
 
@@ -129,6 +130,16 @@ Four tabs. **Turn off the pages** (below them) hides everything without uninstal
 | TV section | On/off, plus the TV library for the Classics tab. |
 | Movies section | On/off, plus the movie library for the Classics tab. |
 | Request site address | Your Seerr or Jellyseerr address. Empty: no Request link. |
+
+**Books**
+
+| Setting | What it does |
+|---|---|
+| Books page | On/off. The link appears once the three below are set. |
+| Hardcover API token | Free, from hardcover.app, Settings, Hardcover API. Search and book pages. Never reaches browsers. |
+| Bookshelf address + API key | As the server reaches it (`http://bookshelf:8787`). Set Bookshelf up like Radarr: download client, root folder, Prowlarr. The key never reaches browsers. |
+| Reading site address | Where people read, e.g. your Calibre-Web. Empty: no Read button. |
+| Books per person per day | Default 10; 0 for no limit. |
 
 **Home**
 
@@ -229,10 +240,12 @@ jellyfin-web --(script added to index.html)--> tuner.js + tuner.css
      |  signed-in session
      v
 /Tuner/radio, /Tuner/tv, /Tuner/jamendo/*, /Tuner/sections,
-/Tuner/apps, /Tuner/party (SyncPlay chat and shared video)    [sign-in]
+/Tuner/apps, /Tuner/party (SyncPlay chat and shared video),
+/Tuner/books (search, book pages, Get it)                     [sign-in]
 /Tuner/radio/{n}/stream, .../logo?t=<ticket>                  [ticket]
      +--> station list and streams (relayed), Dispatcharr, HDHomeRun, Jamendo,
-          GitHub releases (Get apps), YouTube and Twitch players (shared videos, in the browser)
+          GitHub releases (Get apps), Hardcover and Bookshelf (Books),
+          YouTube and Twitch players (shared videos, in the browser)
 ```
 
 - **Script injected as the page is served,** not edited on disk (read-only in Docker, wiped by updates). On any error the original page is served.
@@ -242,6 +255,7 @@ jellyfin-web --(script added to index.html)--> tuner.js + tuner.css
 - **Relays only reach the public internet, and only pass on media.** Station and channel streams can't be pointed (by a playlist or a redirect) at a home or cluster address. Whatever an upstream claims, a relayed stream goes out as audio or video and a logo as a picture (never SVG), marked so browsers never treat it as a page. Playlists are capped at 1 MB and 15 seconds.
 - **Keep has limits:** 25 tracks per person per day, 50 MB per file, and none while the library's disk has under 5 GB free.
 - **Antenna channels are converted on the server** (MPEG-TS) and shared by everyone on the same channel. About one CPU core each; stops after the last viewer.
+- **Books searches Hardcover, not Bookshelf:** Bookshelf fetches every result's details before answering (30-65 s a search); Hardcover answers in under a second. Bookshelf only gets the book you pick, by its Hardcover id (the two use the same ids). Searches, pages and shelves are cached and shared, since Hardcover allows about 60 calls a minute.
 - **Music plays through the browser's own session** ("play these", like casting from a phone), since jellyfin-web doesn't expose its player.
 
 ## Build and release

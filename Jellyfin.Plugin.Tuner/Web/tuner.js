@@ -195,6 +195,12 @@
     // before the side menu and top bar are drawn. Radio then lives inside Music, as its last tab.
     const MUSIC_ON = !!document.querySelector('script[src*="Tuner/music.js"]');
     const music = () => (MUSIC_ON ? window.TunerMusic : null);
+    // Books (2026-11-23): a store-like page for finding books and adding them to the library.
+    // books.js has its own script tag, added only when Books is set up; it draws the page and
+    // answers through window.TunerBooks, while page switching and the links stay here.
+    const BOOKS_ON = !!document.querySelector('script[src*="Tuner/books.js"]');
+    const books = () => (BOOKS_ON ? window.TunerBooks : null);
+    const BOOKS_ROUTE = '#/tuner/books';
     // "One TV section" (setting): Surf, Jellyfin's Live TV ("Guide") and one TV library
     // ("Classics") become tabs of a single TV link. Read from our own script tag, like Music.
     const ME = document.currentScript;
@@ -1300,6 +1306,7 @@
         radio: { route: ROUTE, id: PAGE_ID, title: 'Radio', loading: 'Loading stations…' },
         tv: { route: TV_ROUTE, id: TV_PAGE_ID, title: TV_ON ? 'TV' : 'Surf TV', loading: 'Loading channels…' },
         music: { route: MUSIC_ROUTE, id: 'tnr-music-page', title: 'Music', loading: 'Loading your music…' },
+        books: { route: BOOKS_ROUTE, id: 'tnr-books-page', title: 'Books', loading: 'Loading books…' },
         request: { route: REQUEST_ROUTE, id: 'tnr-request-page', title: 'Request', loading: 'Opening requests…' },
         apps: { route: APPS_ROUTE, id: 'tnr-apps-page', title: 'Get apps', loading: 'Loading apps…' },
     };
@@ -1326,6 +1333,7 @@
             page.dispatchEvent(new CustomEvent('viewhide', { bubbles: true, detail: { type: 'custom' } }));
         }
         if (kind === 'music' && music()) music().leave();
+        if (kind === 'books' && books()) books().leave();
         if (kind === 'tv') {
             // TV doesn't keep playing in the background the way radio does.
             clearTimeout(T.tuneTimer); clearTimeout(T.guideTimer); clearTimeout(T.liveTimer);
@@ -1339,6 +1347,8 @@
         if (S.active === kind) {
             // Music has views of its own (tabs, albums, artists); moving between them stays here.
             if (kind === 'music' && music()) music().show(pageEl('music'), location.hash);
+            // Books too: search, a book's page and back are views of the one page.
+            if (kind === 'books' && books()) books().show(pageEl('books'), location.hash);
             return;
         }
         if (S.active) leave(S.active);
@@ -1372,10 +1382,11 @@
             if (kind === 'radio') { if (!S.loaded) await loadCatalog(); renderPage(); }
             else if (kind === 'music') await music().show(page, location.hash);
             else if (kind === 'request') renderRequestPage(page);
+            else if (kind === 'books') await books().show(page, location.hash);
             else if (kind === 'apps') await renderAppsPage(page);
             else { if (!T.loaded) await loadTv(); else refreshGuide(); renderTvPage(); if (T.enabled) refreshLive(); }
         } catch (e) {
-            const what = { radio: 'the station list', tv: 'the channel list', music: 'your music library', request: 'the request site', apps: 'the list of apps' }[kind];
+            const what = { radio: 'the station list', tv: 'the channel list', music: 'your music library', books: 'the book catalog', request: 'the request site', apps: 'the list of apps' }[kind];
             // Radio inside Music keeps the Music tabs, so the way back is still there.
             const tabs = kind === 'radio' && music() ? music().tabsHtml('radio') : '';
             const msg = await troubleHtml(`Couldn\u2019t load ${what} right now. Try again in a few minutes, and if it keeps happening, let the server owner know.`,
@@ -1420,6 +1431,7 @@
         if (location.hash.startsWith(ROUTE)) showPage('radio');
         else if (MUSIC_ON && music() && location.hash.startsWith(MUSIC_ROUTE)) showPage('music');
         else if (location.hash.startsWith(TV_ROUTE)) showPage('tv');
+        else if (BOOKS_ON && books() && location.hash.startsWith(BOOKS_ROUTE)) showPage('books');
         else if (REQUEST_EMBED && location.hash.startsWith(REQUEST_ROUTE)) showPage('request');
         else if (GET_APPS_ON && location.hash.startsWith(APPS_ROUTE)) showPage('apps');
         else if (S.active) hidePage();
@@ -1717,6 +1729,8 @@
     const ICONS = {
         radio: 'M3.24 6.15C2.51 6.43 2 7.17 2 8v12c0 1.1.89 2 2 2h16c1.11 0 2-.9 2-2V8c0-1.11-.89-2-2-2H8.3l8.26-3.34L15.88 1zM7 20c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3m13-8h-2v-2h-2v2H4V8h16z',
         tv: 'M21 3H3c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.11-.9-2-2-2m0 14H3V5h18zM16 11l-7 4V7z',
+        // Material "menu_book" (an open book).
+        books: 'M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1m0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5z',
         request: 'M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8',
     };
     // With the Music page on, Radio is a tab inside Music and leaves the menu and top bar
@@ -1724,8 +1738,10 @@
     const ENTRIES = [
         { kind: 'radio', label: 'Radio', material: 'radio' },
         { kind: 'tv', label: TV_ON ? 'TV' : 'Surf TV', material: 'live_tv' },
+        // Right before Request (Fretzflix, 2026-11-23): finding a book sits next to asking for a movie.
+        { kind: 'books', label: 'Books', material: 'menu_book' },
         { kind: 'request', label: 'Request', material: 'add_circle_outline' },
-    ].filter((en) => !(MUSIC_ON && en.kind === 'radio') && !(en.kind === 'request' && !REQUEST_URL));
+    ].filter((en) => !(MUSIC_ON && en.kind === 'radio') && !(en.kind === 'request' && !REQUEST_URL) && !(en.kind === 'books' && !BOOKS_ON));
 
     // Jellyfin 12 ships two web layouts. The classic one has .mainDrawer-scrollContainer;
     // the newer one keeps that element in the DOM but hidden, and shows an MUI drawer
@@ -1801,7 +1817,8 @@
             item.dataset.v = '3';
             item.dataset.kind = en.kind;
             item.addEventListener('click', (e) => { go(en.kind)(e); closeDrawer(t.kind); });
-            if (en.kind !== 'request' && anchor && anchor.parentNode === list) { anchor.after(item); anchor = item; }
+            // Books and Request go after every library ("get something new"), in that order.
+            if (en.kind !== 'request' && en.kind !== 'books' && anchor && anchor.parentNode === list) { anchor.after(item); anchor = item; }
             else list.appendChild(item);
         });
     }

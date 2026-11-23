@@ -61,6 +61,10 @@ public class TunerController : ControllerBase
     [AllowAnonymous]
     public IActionResult MusicScript() => Embedded("Tuner.Web.music.js", "application/javascript");
 
+    [HttpGet("books.js")]
+    [AllowAnonymous]
+    public IActionResult BooksScript() => Embedded("Tuner.Web.books.js", "application/javascript");
+
     [HttpGet("party.js")]
     [AllowAnonymous]
     public IActionResult PartyScript() => Embedded("Tuner.Web.party.js", "application/javascript");
