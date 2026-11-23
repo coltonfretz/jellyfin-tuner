@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.13.1",
+        "changelog": "Books: shelves and book pages show their details",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/coltonfretz/jellyfin-tuner/releases/download/v1.0.13.1/tuner_1.0.13.1.zip",
+        "checksum": "be0ea0c268d54976ab08599003456d65",
+        "timestamp": "2026-11-23T07:23:39Z"
+      },
+      {
         "version": "1.0.13.0",
         "changelog": "Books page: search books, Get it adds them to the library, Read opens them",
         "targetAbi": "12.2.0.0",
