@@ -632,6 +632,21 @@ html.tnr-gliding .mainAnimatedPages { pointer-events: none; }
 .tnr-bk-search input::-webkit-search-cancel-button { display: none; }
 .tnr-bk-clear { background: transparent; border: 0; color: var(--tnr-dim); cursor: pointer; padding: .3em; border-radius: 50%; display: flex; }
 .tnr-bk-clear:hover, .tnr-bk-clear:focus-visible { color: var(--tnr-text); background: var(--tnr-raise); }
+/* display:flex above beat the hidden attribute, so the ✕ showed on an empty box. */
+.tnr-bk-clear[hidden], .tnr-bk-arrow[hidden] { display: none; }
+.tnr-bk-intro { margin: -.4em 0 1.4em; color: var(--tnr-dim); font-size: .95em; }
+.tnr-bk-intro .material-icons { font-size: 1.1em; vertical-align: -.2em; color: #3fb950; }
+/* Shelf arrows: centred on the covers, over the row's ends. */
+.tnr-bk-rowwrap { position: relative; }
+.tnr-bk-arrow { position: absolute; top: calc(.3em + var(--tnr-bk-card) * .75); transform: translateY(-50%); z-index: 2;
+  width: 2.6em; height: 2.6em; border-radius: 50%; border: 1px solid var(--tnr-line, rgba(255,255,255,.15));
+  background: rgba(20, 16, 31, .85); color: var(--tnr-text); cursor: pointer; display: flex; align-items: center;
+  justify-content: center; padding: 0; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+.tnr-bk-arrow:hover, .tnr-bk-arrow:focus-visible { background: var(--tnr-raise); }
+.tnr-bk-arrow.prev { left: -.6em; }
+.tnr-bk-arrow.next { right: -.6em; }
+/* Touch screens swipe; the arrows would only cover books there. */
+@media (hover: none) { .tnr-bk-arrow { display: none; } }
 
 .tnr-bk-shelf { margin-bottom: 2em; }
 .tnr-bk-shelf h2, .tnr-bk-head { font-size: 1.2em; font-weight: 600; margin: 0 0 .7em; }
@@ -701,6 +716,8 @@ html.tnr-gliding .mainAnimatedPages { pointer-events: none; }
 .tnr-bk-spin { animation: tnr-bk-spin 1.4s linear infinite; }
 @keyframes tnr-bk-spin { to { transform: rotate(360deg); } }
 .tnr-bk-genres { margin: 0 0 1.2em; }
+/* Plain text, not pills: pills looked like buttons that did nothing (new-user test). */
+.tnr-bk-genres { color: var(--tnr-dim); font-size: .85em; }
 .tnr-bk-genres span { display: inline-block; margin: 0 .4em .4em 0; padding: .25em .75em; border-radius: 999px; font-size: .8em;
   background: var(--tnr-panel); border: 1px solid var(--tnr-line); color: var(--tnr-dim); }
 .tnr-bk-desc { max-width: 44em; line-height: 1.6; color: #d4d8dd; max-height: 12em; overflow: hidden; position: relative; }

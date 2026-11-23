@@ -9,6 +9,7 @@
  *   #/tuner/books          shelves: In the library, Popular new books, Most read
  *   #/tuner/books?q=dune   search results
  *   #/tuner/books/427578   one book (Hardcover's id)
+ *   #/tuner/books/author/123645   one author's books, most read first
  *
  * tuner.js owns page switching, the top bar and the side menu, and calls show() whenever the
  * address changes while Books is open. This file only draws the page.
@@ -58,10 +59,14 @@
 
     function parse(hash) {
         const rest = hash.slice(ROUTE.length);
+        const a = /^\/author\/(\d+)/.exec(rest);
+        if (a) return { view: 'author', id: parseInt(a[1], 10) };
         const m = /^\/(\d+)/.exec(rest);
         if (m) return { view: 'book', id: parseInt(m[1], 10) };
         const q = /[?&]q=([^&]*)/.exec(rest);
-        if (q && decodeURIComponent(q[1]).trim()) return { view: 'search', q: decodeURIComponent(q[1]).trim() };
+        const text = q ? decodeURIComponent(q[1]).trim() : '';
+        // One or two letters: too short to search (and old results would just sit there).
+        if (text) return { view: text.length < 3 ? 'short' : 'search', q: text };
         return { view: 'home' };
     }
 
@@ -87,7 +92,7 @@
             wrap.innerHTML = `<div class="tnr-books">
                 <form class="tnr-bk-search" role="search" autocomplete="off">
                     <span class="material-icons" aria-hidden="true">search</span>
-                    <input type="search" placeholder="Search for a book, author or series" aria-label="Search books" maxlength="120">
+                    <input type="search" placeholder="Search books or authors" aria-label="Search books, authors or series" maxlength="120">
                     <button type="button" class="tnr-bk-clear" aria-label="Clear search" hidden><span class="material-icons" aria-hidden="true">close</span></button>
                 </form>
                 <div class="tnr-bk-body"></div>
@@ -106,7 +111,9 @@
         const body = $('.tnr-bk-body', wrap);
         try {
             if (r.view === 'book') await renderBook(body, r.id);
+            else if (r.view === 'author') await renderAuthor(body, r.id);
             else if (r.view === 'search') await renderSearch(body, r.q);
+            else if (r.view === 'short') body.innerHTML = '<div class="tnr-empty">Keep typing: at least 3 letters to search.</div>';
             else await renderHome(body);
         } catch (e) {
             if (B.sig !== sig) return;
@@ -117,6 +124,7 @@
         // Back to a list: where you were. A new view: the top.
         const back = B.scroll[sig];
         window.scrollTo(0, r.view !== 'book' && back != null && from && JSON.parse(from).view === 'book' ? back : 0);
+        bindRows(body);
         startPoll();
     }
 
@@ -134,13 +142,18 @@
             const q = input.value.trim();
             const hash = q ? `${ROUTE}?q=${encodeURIComponent(q)}` : ROUTE;
             // Typing refines the same search (replace); starting one from elsewhere is a new step.
-            goTo(hash, parse(location.hash).view === 'search');
+            const v = parse(location.hash).view;
+            goTo(hash, v === 'search' || v === 'short');
         };
         form.addEventListener('submit', (e) => { e.preventDefault(); run(); });
         input.addEventListener('input', () => {
             clear.hidden = !input.value;
             clearTimeout(B.typing);
-            if (input.value.trim().length >= 3) B.typing = setTimeout(run, SEARCH_WAIT_MS);
+            // Emptying the box brings the shelves back, and a letter or two says "keep typing",
+            // instead of old results staying on screen (new-user test, 2026-11-23).
+            const n = input.value.trim().length;
+            if (n >= 3) B.typing = setTimeout(run, SEARCH_WAIT_MS);
+            else if (n > 0 || parse(location.hash).view !== 'home') B.typing = setTimeout(run, 300);
         });
         clear.addEventListener('click', () => { input.value = ''; clear.hidden = true; input.focus(); goTo(ROUTE); });
     }
@@ -161,14 +174,75 @@
         if (!data.enabled) { body.innerHTML = '<div class="tnr-empty">Books isn’t set up on this server.</div>'; return; }
         Object.assign(B.states, data.states || {});
         const shelves = (data.shelves || []).filter((s) => s.books && s.books.length);
-        body.innerHTML = shelves.length
+        // One line for newcomers: what these are and what the check mark means.
+        const intro = '<p class="tnr-bk-intro">Ebooks to read in your browser. Books with a <span class="material-icons" aria-hidden="true">check_circle</span> are in the library; open any other book to add it.</p>';
+        body.innerHTML = intro + (shelves.length
             ? shelves.map((s) => `<section class="tnr-bk-shelf">
                     <h2>${esc(s.title)}</h2>
-                    <div class="tnr-bk-row">${s.books.map(cardHtml).join('')}</div>
+                    <div class="tnr-bk-rowwrap">
+                        <button type="button" class="tnr-bk-arrow prev" aria-label="Scroll left" hidden><span class="material-icons" aria-hidden="true">chevron_left</span></button>
+                        <div class="tnr-bk-row">${s.books.map(cardHtml).join('')}</div>
+                        <button type="button" class="tnr-bk-arrow next" aria-label="Scroll right" hidden><span class="material-icons" aria-hidden="true">chevron_right</span></button>
+                    </div>
                 </section>`).join('')
-            : '<div class="tnr-empty">Search for a book above to get started.</div>';
+            : '<div class="tnr-empty">Search for a book above to get started.</div>');
         bindCards(body);
     }
+
+    // Shelf arrows. WHY: a mouse wheel scrolls the page, not the shelf, and the scrollbar is
+    // thin, so on a laptop 23 of a shelf's 30 books were out of reach (new-user test,
+    // 2026-11-23). Each arrow shows only when there's more that way; touch still swipes.
+    function bindRows(root) {
+        root.querySelectorAll('.tnr-bk-rowwrap').forEach((wrap) => {
+            const row = $('.tnr-bk-row', wrap);
+            const prev = $('.tnr-bk-arrow.prev', wrap);
+            const next = $('.tnr-bk-arrow.next', wrap);
+            const update = () => {
+                prev.hidden = row.scrollLeft < 8;
+                next.hidden = row.scrollLeft + row.clientWidth >= row.scrollWidth - 8;
+            };
+            const step = (dir) => row.scrollBy({ left: dir * Math.max(200, row.clientWidth * 0.85), behavior: 'smooth' });
+            prev.addEventListener('click', () => step(-1));
+            next.addEventListener('click', () => step(1));
+            row.addEventListener('scroll', update, { passive: true });
+            wrap.tnrUpdate = update;
+            update();
+        });
+    }
+    // One listener for every shelf on screen, rather than one more per shelf each time it's drawn.
+    window.addEventListener('resize', () => {
+        if (B.page) B.page.querySelectorAll('.tnr-bk-rowwrap').forEach((w) => w.tnrUpdate && w.tnrUpdate());
+    });
+
+    async function renderAuthor(body, id) {
+        const sig = B.sig;
+        body.innerHTML = '<div class="tnr-empty">Loading…</div>';
+        const data = await get(`Tuner/books/author/${id}`);
+        if (B.sig !== sig) return;
+        if (data.enabled === false) { body.innerHTML = '<div class="tnr-empty">Books isn’t set up on this server.</div>'; return; }
+        Object.assign(B.states, data.states || {});
+        const list = data.books || [];
+        body.innerHTML = `<button type="button" class="tnr-bk-back"><span class="material-icons" aria-hidden="true">arrow_back</span>Back</button>`
+            + (list.length
+                ? `<h2 class="tnr-bk-head">Books by ${esc(data.name || 'this author')}</h2><div class="tnr-bk-grid">${list.map(cardHtml).join('')}</div>`
+                : '<div class="tnr-empty">No books found for this author.</div>');
+        bindBack(body);
+        bindCards(body);
+    }
+
+    function bindBack(body) {
+        $('.tnr-bk-back', body).addEventListener('click', () => {
+            // Back where you came from if that was Books; otherwise the shelves.
+            if (history.state && history.state.inner) history.back();
+            else goTo(ROUTE);
+        });
+    }
+
+    // Hardcover's subtitle comes from whichever edition it shows, so Dune said "Teacher's Book"
+    // and Pride and Prejudice "6-Volume Set" (new-user test, 2026-11-23). Edition and format
+    // words are dropped; real subtitles ("A Novel", "Or, the Modern Prometheus") stay.
+    const EDITION_WORDS = /\b(edition|volumes?|vol\.|set|teacher'?s|student'?s|workbook|study guide|annotated|illustrated|unabridged|abridged|box(ed)?|collector'?s|deluxe|anniversary|classics?|paperback|hardcover|large print|graphic novel|book \d+|\d+-volume|movie tie-in|tie-in|reprint|penguin|signet|bantam|vintage|oxford|norton|wordsworth)\b/i;
+    const goodSubtitle = (sub, title) => sub && !EDITION_WORDS.test(sub) && sub.toLowerCase() !== String(title).toLowerCase();
 
     async function renderSearch(body, q) {
         const sig = B.sig;
@@ -252,23 +326,26 @@
                 <div class="tnr-bk-bigcover${b.cover ? '' : ' none'}">${coverHtml(b, true)}</div>
                 <div class="tnr-bk-info">
                     <h1>${esc(b.title)}</h1>
-                    ${b.subtitle ? `<div class="tnr-bk-sub">${esc(b.subtitle)}</div>` : ''}
-                    ${b.authors ? `<div class="tnr-bk-by">by <a href="#" data-find="${esc(b.authors.split(' and ')[0].split(',')[0])}">${esc(b.authors)}</a></div>` : ''}
+                    ${goodSubtitle(b.subtitle, b.title) ? `<div class="tnr-bk-sub">${esc(b.subtitle)}</div>` : ''}
+                    ${b.authors ? `<div class="tnr-bk-by">by ${b.authorId
+                        ? `<a href="${ROUTE}/author/${b.authorId}" data-go>${esc(b.authors)}</a>`
+                        : `<a href="#" data-find="${esc(b.authors.split(' and ')[0].split(',')[0])}">${esc(b.authors)}</a>`}</div>` : ''}
                     ${b.series ? `<div class="tnr-bk-series">${b.seriesPosition ? `Book ${esc(b.seriesPosition)} of ` : 'Part of '}<a href="#" data-find="${esc(b.series)}">${esc(b.series)}</a></div>` : ''}
                     ${meta ? `<div class="tnr-bk-meta">${meta}</div>` : ''}
                     <div class="tnr-bk-action" aria-live="polite"></div>
-                    ${b.genres && b.genres.length ? `<div class="tnr-bk-genres">${b.genres.map((g) => `<span>${esc(g)}</span>`).join('')}</div>` : ''}
+                    ${b.genres && b.genres.length ? `<div class="tnr-bk-genres">${b.genres.map(esc).join(' · ')}</div>` : ''}
                     ${paras.length ? `<div class="tnr-bk-desc">${paras.map((p) => `<p>${esc(p)}</p>`).join('')}</div>
                         <button type="button" class="tnr-bk-more" hidden>More</button>` : ''}
                 </div>
             </div>
         </div>`;
         bindCovers(body);
-        $('.tnr-bk-back', body).addEventListener('click', () => {
-            // Back where you came from if that was Books; otherwise the shelves.
-            if (history.state && history.state.inner) history.back();
-            else goTo(ROUTE);
-        });
+        bindBack(body);
+        body.querySelectorAll('[data-go]').forEach((a) => a.addEventListener('click', (e) => {
+            if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            e.preventDefault();
+            goTo(a.getAttribute('href'));
+        }));
         body.querySelectorAll('[data-find]').forEach((a) => a.addEventListener('click', (e) => {
             e.preventDefault();
             goTo(`${ROUTE}?q=${encodeURIComponent(a.dataset.find)}`);
@@ -297,7 +374,9 @@
                 ? `<a class="tnr-bk-btn primary" href="${esc(B.book.read)}" target="_blank" rel="noopener"><span class="material-icons" aria-hidden="true">auto_stories</span>Read</a>`
                 : '')
                 + `<div class="tnr-bk-status have"><span class="material-icons" aria-hidden="true">check_circle</span>In the library</div>`
-                + (B.book.read ? '<div class="tnr-bk-hint">A new book can take a few minutes to show up in the reader.</div>' : '');
+                // Only for a book that just arrived while you watched: the reader picks it up
+                // a couple of minutes after the download (shown on every old book before).
+                + (B.book.read && B.book.arrived ? '<div class="tnr-bk-hint">Just arrived: it can take a couple of minutes to show up in the reader.</div>' : '');
         } else if (state === 'downloading' || state === 'problem') {
             const pct = Math.round((st.progress || 0) * 100);
             html = state === 'problem'
@@ -316,7 +395,7 @@
                 <button type="button" class="tnr-bk-btn" data-do="get">Look again</button>`;
         } else {
             html = `<button type="button" class="tnr-bk-btn primary" data-do="get"><span class="material-icons" aria-hidden="true">add</span>Get it</button>
-                <div class="tnr-bk-hint">Adds it to the library. Usually takes a few minutes.</div>`;
+                <div class="tnr-bk-hint">Adds it to the shared library, so everyone here can read it. Usually ready in a few minutes; you’ll find it under In the library.</div>`;
         }
         box.innerHTML = html;
         const read = $('a.tnr-bk-btn', box);
@@ -391,6 +470,7 @@
                 const states = await get('Tuner/books/states', { ids: ids.join(',') });
                 if (B.sig !== sig) return;
                 ids.forEach((id) => { if (states[id]) B.states[id] = states[id]; else delete B.states[id]; });
+                if (isBook && B.book && B.states[B.book.id] && B.states[B.book.id].state === 'have') B.book.arrived = true;
                 if (isBook) renderAction();
                 else {
                     B.page.querySelectorAll('.tnr-bk-card').forEach((a) => {

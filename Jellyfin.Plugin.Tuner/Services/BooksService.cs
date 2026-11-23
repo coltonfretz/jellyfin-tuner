@@ -136,6 +136,8 @@ public class BooksService
                 ct).ConfigureAwait(false);
             var hits = data?["search"]?["results"]?["hits"] as JsonArray ?? new JsonArray();
             var cards = new List<BookCard>();
+            var lesser = new HashSet<int>();
+            var today = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
             foreach (var hit in hits)
             {
                 var d = hit?["document"];
@@ -145,6 +147,15 @@ public class BooksService
                 }
 
                 var series = d["featured_series"];
+                var title = d["title"]?.ToString() ?? string.Empty;
+                var released = d["release_date"]?.ToString();
+                if (d["compilation"]?.GetValueKind() == JsonValueKind.True
+                    || NotTheBook.IsMatch(title)
+                    || (!string.IsNullOrEmpty(released) && string.CompareOrdinal(released, today) > 0))
+                {
+                    lesser.Add(id);
+                }
+
                 cards.Add(new BookCard
                 {
                     Id = id,
@@ -160,12 +171,23 @@ public class BooksService
                 });
             }
 
-            // Keep Hardcover's order (it ranks by match), but books nobody on Hardcover has
-            // shelved go last: they're mostly summaries, study guides and odd bundles
-            // ("SUMMARY AND ANALYSIS OF PROJECT HAIL MARY" came second for that search).
-            return cards.Where(c => c.Readers > 0).Concat(cards.Where(c => c.Readers == 0)).ToList();
+            // Keep Hardcover's order (it ranks by match), but in three bands: real books people
+            // read, then real books nobody on Hardcover has shelved, then what isn't the book
+            // itself (box sets, summaries, companions, placeholders for unwritten sequels, books
+            // not out yet). "SUMMARY AND ANALYSIS OF PROJECT HAIL MARY" came second for that
+            // search, and "stormlight archive" showed box sets and "Untitled #6" before any
+            // novel (new-user test, 2026-11-23).
+            return cards.Where(c => !lesser.Contains(c.Id) && c.Readers > 0)
+                .Concat(cards.Where(c => !lesser.Contains(c.Id) && c.Readers == 0))
+                .Concat(cards.Where(c => lesser.Contains(c.Id)))
+                .ToList();
         }).ConfigureAwait(false);
     }
+
+    // Titles that aren't the book itself, for SearchAsync's last band.
+    private static readonly System.Text.RegularExpressions.Regex NotTheBook = new(
+        @"\b(summary|summaries|analysis of|study guide|sparknotes|cliffs ?notes|workbook|companion|box(ed)? ?set|collection|omnibus|sidekick|compendium|world guide|untitled|series order|epilogue for|trivia|quiz|coloring book|sampler|excerpt|books \d+ ?[-–] ?\d+)\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>
     /// One card per book: Hardcover lists editions separately, so "frankenstein" showed six
@@ -207,8 +229,10 @@ public class BooksService
             if (name == "new")
             {
                 data = await Hardcover(
-                    "query($y:Int!){ books(where:{release_year:{_gte:$y}, users_count:{_gte:300}}, order_by:{users_count:desc}, limit:30){ " + CardFields + " } }",
-                    new JsonObject { ["y"] = DateTime.UtcNow.Year - 1 },
+                    // Out already: popular upcoming books (The Doors of Stone) had people asking
+                    // why they couldn't get them (new-user test, 2026-11-23).
+                    "query($y:Int!, $d:date!){ books(where:{release_year:{_gte:$y}, release_date:{_lte:$d}, users_count:{_gte:300}}, order_by:{users_count:desc}, limit:30){ " + CardFields + " } }",
+                    new JsonObject { ["y"] = DateTime.UtcNow.Year - 1, ["d"] = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) },
                     ct).ConfigureAwait(false);
             }
             else
@@ -220,6 +244,38 @@ public class BooksService
             }
 
             return CardsOf(data?["books"] as JsonArray);
+        }).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// One author's books, most read first: the "by ..." link on a book page. WHY not a text
+    /// search for the name: "Frank Herbert" as words found God Emperor, graphic novels and
+    /// books about him before Dune (new-user test, 2026-11-23). Box sets left out; books not
+    /// out yet go last.
+    /// </summary>
+    public async Task<(string Name, List<BookCard> Books)> AuthorAsync(int authorId, CancellationToken ct)
+    {
+        return await Cached("author:" + authorId, ShelfFresh, async () =>
+        {
+            var data = await Hardcover(
+                "query($a:Int!){ authors_by_pk(id:$a){ name } books(where:{contributions:{author_id:{_eq:$a}, _or:[{contribution:{_is_null:true}}, {contribution:{_eq:\"Author\"}}]}, compilation:{_eq:false}}, order_by:{users_count:desc}, limit:40){ release_date " + CardFields + " } }",
+                new JsonObject { ["a"] = authorId },
+                ct).ConfigureAwait(false);
+            var arr = data?["books"] as JsonArray;
+            var today = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            var later = new HashSet<int>();
+            foreach (var b in arr ?? new JsonArray())
+            {
+                var released = b?["release_date"]?.ToString();
+                if (!string.IsNullOrEmpty(released) && string.CompareOrdinal(released, today) > 0 && Int(b?["id"]) is int lid)
+                {
+                    later.Add(lid);
+                }
+            }
+
+            var cards = CardsOf(arr);
+            return (data?["authors_by_pk"]?["name"]?.ToString() ?? string.Empty,
+                cards.Where(c => !later.Contains(c.Id)).Concat(cards.Where(c => later.Contains(c.Id))).ToList());
         }).ConfigureAwait(false);
     }
 
@@ -506,12 +562,13 @@ public class BooksService
             var fresh = !have.Monitored;
             if (fresh)
             {
-                if (!TakeAllowance(user, c.BooksPerUserPerDay))
+                if (!HasAllowance(user, c.BooksPerUserPerDay))
                 {
                     return (false, $"That's {c.BooksPerUserPerDay} books today. Try again tomorrow.");
                 }
 
                 await Bookshelf(HttpMethod.Put, "book/monitor", new JsonObject { ["bookIds"] = new JsonArray(have.BookshelfId), ["monitored"] = true }, ct).ConfigureAwait(false);
+                TakeAllowance(user);
                 _logger.LogInformation("Books: {User} asked for Hardcover {Id} (author already in Bookshelf)", user, id);
             }
 
@@ -520,7 +577,9 @@ public class BooksService
             return (true, fresh ? "Added. Looking for a copy now." : "Looking for it again.");
         }
 
-        if (!TakeAllowance(user, c.BooksPerUserPerDay))
+        // The allowance is only used once the book is really added (TakeAllowance below): a
+        // book Bookshelf can't take shouldn't cost one of the day's adds (review, 2026-11-23).
+        if (!HasAllowance(user, c.BooksPerUserPerDay))
         {
             return (false, $"That's {c.BooksPerUserPerDay} books today. Try again tomorrow.");
         }
@@ -565,8 +624,25 @@ public class BooksService
             ["monitorNewItems"] = "none",
             ["addOptions"] = new JsonObject { ["monitor"] = "none", ["searchForMissingBooks"] = false },
         };
-        await Bookshelf(HttpMethod.Post, "book", book, ct).ConfigureAwait(false);
+        try
+        {
+            await Bookshelf(HttpMethod.Post, "book", book, ct).ConfigureAwait(false);
+        }
+        catch (BooksException)
+        {
+            // Two people pressing Get it on the same book at once: the second add fails because
+            // the first got there. Say so instead of "the catalog isn't answering".
+            _library = null;
+            if ((await LibraryAsync(true, ct).ConfigureAwait(false)).ContainsKey(id))
+            {
+                return (true, "Someone just asked for it. It's on its way.");
+            }
+
+            throw;
+        }
+
         _library = null;
+        TakeAllowance(user);
         _logger.LogInformation("Books: {User} asked for {Title} (Hardcover {Id})", user, detail.Title, id);
         return (true, "Added. Looking for a copy now.");
     }
@@ -710,7 +786,9 @@ public class BooksService
     // Helpers
     // =====================================================================
 
-    private bool TakeAllowance(string user, int perDay)
+    // Adds per person in the last 24 hours. Memory only, so a Jellyfin restart starts everyone
+    // fresh: fine for a guard against double-clicks and curiosity, not a quota.
+    private bool HasAllowance(string user, int perDay)
     {
         if (perDay <= 0)
         {
@@ -726,13 +804,16 @@ public class BooksService
                 times.Dequeue();
             }
 
-            if (times.Count >= perDay)
-            {
-                return false;
-            }
+            return times.Count < perDay;
+        }
+    }
 
+    private void TakeAllowance(string user)
+    {
+        var times = _gets.GetOrAdd(user, _ => new Queue<DateTime>());
+        lock (times)
+        {
             times.Enqueue(DateTime.UtcNow);
-            return true;
         }
     }
 

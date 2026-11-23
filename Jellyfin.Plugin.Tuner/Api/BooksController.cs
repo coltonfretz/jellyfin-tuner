@@ -86,6 +86,15 @@ public class BooksController : ControllerBase
         return Json(new { books, states });
     });
 
+    /// <summary>One author's books, most read first (the "by ..." link on a book page).</summary>
+    [HttpGet("author/{id:int}")]
+    public Task<ActionResult> Author(int id, CancellationToken ct) => Guarded(async () =>
+    {
+        var (name, all) = await _books.AuthorAsync(id, ct).ConfigureAwait(false);
+        var states = await SafeStates(all.Select(b => b.Id), ct).ConfigureAwait(false);
+        return Json(new { name, books = BooksService.OnePerBook(all, states.Keys), states });
+    });
+
     [HttpGet("{id:int}")]
     public Task<ActionResult> Book(int id, CancellationToken ct) => Guarded(async () =>
     {
@@ -168,6 +177,17 @@ public class BooksController : ControllerBase
     [AllowAnonymous]
     public ActionResult Redeem([FromQuery] string? t)
     {
+        // Only for the gate, which calls Jellyfin's in-cluster address directly. Anything that
+        // came through a proxy (every request from the internet, and the home name) carries
+        // forwarding headers, and anything else must come from a private address. WHY: nobody
+        // but the gate should trade a ticket, so a ticket that leaks in a screenshot or a
+        // pasted link can't be used by whoever holds it (review, 2026-11-23).
+        if (!FromInside())
+        {
+            _logger.LogInformation("Books: refused a ticket redeem from outside the cluster");
+            return new JsonResult(new { message = "Unknown or used ticket." }, WebJson) { StatusCode = 404 };
+        }
+
         var user = BooksService.RedeemTicket(t);
         if (user == null)
         {
@@ -184,7 +204,16 @@ public class BooksController : ControllerBase
     private static string? ReadLink(BookDetail book)
     {
         var read = BooksService.ReadBase;
-        return read == null ? null : $"{read}/search?query={Uri.EscapeDataString(book.Title)}";
+        if (read == null)
+        {
+            return null;
+        }
+
+        // fz_author: the reader's own search ignores it; the gate uses it to tell two books with
+        // the same title apart (two "It"s) when it opens the book for you.
+        var author = (book.Authors ?? string.Empty).Split(", ")[0].Split(" and ")[0].Trim();
+        return $"{read}/search?query={Uri.EscapeDataString(book.Title)}"
+            + (author.Length > 0 ? $"&fz_author={Uri.EscapeDataString(author)}" : string.Empty);
     }
 
     // States come from Bookshelf; if it's down, the catalog still works without them.
@@ -217,6 +246,36 @@ public class BooksController : ControllerBase
             _logger.LogWarning("Books: {Message}", ex.Message);
             return new JsonResult(new { message = "The book catalog isn't answering right now. Try again in a minute." }, WebJson) { StatusCode = 502 };
         }
+    }
+
+    private bool FromInside()
+    {
+        var h = Request.Headers;
+        if (h.ContainsKey("X-Forwarded-For") || h.ContainsKey("X-Original-For") || h.ContainsKey("X-Real-IP") || h.ContainsKey("Forwarded"))
+        {
+            return false;
+        }
+
+        var ip = HttpContext.Connection.RemoteIpAddress;
+        if (ip == null)
+        {
+            return false;
+        }
+
+        if (ip.IsIPv4MappedToIPv6)
+        {
+            ip = ip.MapToIPv4();
+        }
+
+        if (System.Net.IPAddress.IsLoopback(ip))
+        {
+            return true;
+        }
+
+        var b = ip.GetAddressBytes();
+        return ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+            ? b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] <= 31) || (b[0] == 192 && b[1] == 168)
+            : (b[0] & 0xFE) == 0xFC;
     }
 
     public sealed record Shelf(string Key, string Title, List<BookCard> Books);
