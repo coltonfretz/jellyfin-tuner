@@ -1,5 +1,8 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Jellyfin.Data.Enums;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Drawing;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
@@ -28,6 +31,8 @@ namespace Jellyfin.Plugin.Tuner.Services;
 ///      tile all year once any collection exists, which would undo the "seasonal" part.
 ///      It's a per-user setting, so it's re-checked daily to cover new accounts.
 ///   3. Library tiles get redrawn every few days so they pick a new backdrop.
+///   4. Movie and show libraries open on their Genres tab for accounts that never picked a
+///      default tab (also per-user, so also re-checked daily).
 /// </summary>
 public class SeasonService
 {
@@ -37,10 +42,12 @@ public class SeasonService
     private readonly IProviderManager _providers;
     private readonly IFileSystem _fileSystem;
     private readonly IImageProcessor _images;
+    private readonly IDisplayPreferencesManager _displayPrefs;
     private readonly ILogger<SeasonService> _logger;
 
-    public SeasonService(ILibraryManager library, IUserManager users, IPlaylistManager playlists, IProviderManager providers, IFileSystem fileSystem, IImageProcessor images, ILogger<SeasonService> logger)
+    public SeasonService(ILibraryManager library, IUserManager users, IPlaylistManager playlists, IProviderManager providers, IFileSystem fileSystem, IImageProcessor images, IDisplayPreferencesManager displayPrefs, ILogger<SeasonService> logger)
     {
+        _displayPrefs = displayPrefs;
         _library = library;
         _users = users;
         _playlists = playlists;
@@ -156,6 +163,19 @@ public class SeasonService
             await HideCollectionsLibraryAsync().ConfigureAwait(false);
         }
 
+        if (config.LibrariesOpenOnGenres)
+        {
+            try
+            {
+                OpenLibrariesOnGenres();
+            }
+            catch (Exception e)
+            {
+                // A Jellyfin change to how settings are stored must not stop the rest of upkeep.
+                _logger.LogWarning(e, "Tuner: couldn't set the Genres tab as the default");
+            }
+        }
+
         progress.Report(40);
         if (config.ShuffleLibraryTileDays > 0)
         {
@@ -223,6 +243,44 @@ public class SeasonService
             configuration.MyMediaExcludes = excludes.Concat(missing).ToArray();
             await _users.UpdateConfigurationAsync(user.Id, configuration).ConfigureAwait(false);
             _logger.LogInformation("Tuner: hid the Collections library from {User}'s My Media", user.Username);
+        }
+    }
+
+    /// <summary>
+    /// Sets "landing-&lt;library id&gt;" = "genres" in each account's web settings for every movie
+    /// and show library, unless the account already has a value there (its own choice, made in
+    /// Settings > Home > "Default screen"). jellyfin-web keeps those settings as the custom
+    /// display preferences "usersettings" for client "emby", and the Movies and Shows pages read
+    /// the key when the address has no ?tab= (movies-moviesrecommended / shows-tvrecommended).
+    /// The display preferences id is a string, which Jellyfin's API turns into a Guid as the MD5
+    /// of its UTF-16 bytes (string.GetMD5()); checked against the database 2026-11-24.
+    /// </summary>
+    private void OpenLibrariesOnGenres()
+    {
+        var libraries = _library.GetUserRootFolder().Children.OfType<CollectionFolder>()
+            .Where(f => f.CollectionType == CollectionType.movies || f.CollectionType == CollectionType.tvshows)
+            .Select(f => "landing-" + f.Id.ToString("N", CultureInfo.InvariantCulture))
+            .ToList();
+        if (libraries.Count == 0)
+        {
+            return;
+        }
+
+        var itemId = new Guid(MD5.HashData(Encoding.Unicode.GetBytes("usersettings")));
+        foreach (var user in _users.GetUsers().ToList())
+        {
+            var prefs = _displayPrefs.ListCustomItemDisplayPreferences(user.Id, itemId, "emby");
+            var missing = libraries.Where(k => !prefs.TryGetValue(k, out var v) || string.IsNullOrEmpty(v)).ToList();
+            if (missing.Count == 0)
+            {
+                continue;
+            }
+
+            // Set replaces the whole list, so write back everything that was there plus ours.
+            var updated = new Dictionary<string, string?>(prefs);
+            missing.ForEach(k => updated[k] = "genres");
+            _displayPrefs.SetCustomItemDisplayPreferences(user.Id, itemId, "emby", updated);
+            _logger.LogInformation("Tuner: {User}'s movie and show libraries now open on Genres", user.Username);
         }
     }
 

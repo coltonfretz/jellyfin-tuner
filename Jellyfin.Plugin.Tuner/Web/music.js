@@ -42,6 +42,7 @@
     const GENRE_TILE_MIN = 8;     // smaller genres share the "More genres" tile
     const DAILY_SHELVES = 6;      // genre-and-decade shelves shown per day
     const ROW_CARDS = 30;         // cards per Catalog row before "See all"
+    const SHELF_KINDS = ['big', 'lines', 'square', 'wide'];   // Catalog shelf shapes, in turn
     const MAX_QUEUE = 200;        // ids per play command (they ride in the URL; Kestrel caps it ~8 KB)
     const INDEX_TTL = 30 * 60 * 1000;
     const NP_POLL_MS = 2000;
@@ -410,14 +411,35 @@
             <div class="tnm-artbox">${art(x.id, x.tag, x.name, 'tnm-round')}</div><div class="tnm-card-title">${esc(x.name)}</div></a>`;
     }
 
+    // Two more album card shapes for Catalog, so it isn't one wall of same-size squares
+    // (Fretzflix, 2026-11-24, after Apple Music and Tidal):
+    //   wide: a landscape card, cover on the left over a blurred copy of itself, more text.
+    //   line: a short row (small cover, title, artist), stacked four high in columns, like
+    //         Apple Music's "Top Songs" shelf. No rank numbers: the order is a daily shuffle.
+    function wideCard(a) {
+        const href = `${ROUTE}/album?id=${a.id}`;
+        const bg = a.tag ? `<div class="tnm-wide-bg" style="background-image:url('${esc(imgUrl(a.id, a.tag, 200))}')"></div>` : '';
+        const kicker = [a.genres[0], a.year].filter(Boolean).join(' · ');
+        return `<a class="tnm-card tnm-wide" href="${href}" data-href="${href}" title="${esc(a.name)}">${bg}
+            <div class="tnm-artbox">${art(a.id, a.tag, a.name)}<button type="button" class="tnm-hoverplay" data-act="play-album" data-id="${a.id}" aria-label="Play ${esc(a.name)}"><span class="material-icons" aria-hidden="true">play_arrow</span></button></div>
+            <div class="tnm-wide-text">${kicker ? `<div class="tnm-kicker">${esc(kicker)}</div>` : ''}<div class="tnm-card-title">${esc(a.name)}</div><div class="tnm-card-sub">${esc(a.artist)}</div></div></a>`;
+    }
+
+    function lineCard(a) {
+        const href = `${ROUTE}/album?id=${a.id}`;
+        return `<a class="tnm-card tnm-line" href="${href}" data-href="${href}" title="${esc(a.name)}">
+            <div class="tnm-artbox">${art(a.id, a.tag, a.name, '', 120)}<button type="button" class="tnm-hoverplay" data-act="play-album" data-id="${a.id}" aria-label="Play ${esc(a.name)}"><span class="material-icons" aria-hidden="true">play_arrow</span></button></div>
+            <div class="tnm-line-text"><div class="tnm-card-title">${esc(a.name)}</div><div class="tnm-card-sub">${esc([a.artist, a.year].filter(Boolean).join(' · '))}</div></div></a>`;
+    }
+
     function shelf(title, cardsHtml, opts) {
         opts = opts || {};
         const more = opts.more ? `<a class="tnm-more" href="${opts.more}" data-href="${opts.more}">See all</a>` : '';
-        return `<section class="tnm-shelf"${opts.id ? ` id="${opts.id}"` : ''}>
+        return `<section class="tnm-shelf${opts.kind ? ' tnm-shelf-' + opts.kind : ''}"${opts.id ? ` id="${opts.id}"` : ''}>
             <div class="tnm-shelf-head"><h2>${esc(title)}</h2>${more}
                 <button type="button" class="tnm-arrow" data-act="row" data-d="-1" aria-label="Scroll back"><span class="material-icons" aria-hidden="true">chevron_left</span></button>
                 <button type="button" class="tnm-arrow" data-act="row" data-d="1" aria-label="Scroll on"><span class="material-icons" aria-hidden="true">chevron_right</span></button></div>
-            <div class="tnm-row">${cardsHtml}</div></section>`;
+            <div class="tnm-row${opts.kind === 'lines' ? ' tnm-lines' : ''}">${cardsHtml}</div></section>`;
     }
 
     // A song list that plays from whichever song is clicked, the rest of the list queued after it.
@@ -569,15 +591,22 @@
         if (!f) { out.innerHTML = ''; browse.hidden = false; return; }
         browse.hidden = true;
         const want = (k) => M.searchF === 'all' || M.searchF === k;
+        // One kind picked: every match in a grid, not the All view's single row with the
+        // rest hidden. WHY (Fretzflix, 2026-11-24): "Albums" showed the same row of 24 as
+        // All, so the chips looked like they did nothing.
+        const only = M.searchF !== 'all';
+        const block = (title, cards) => (only
+            ? `<section class="tnm-shelf"><h2 class="tnm-h2">${esc(title)}</h2><div class="tnm-grid">${cards}</div></section>`
+            : shelf(title, cards));
         // Artists and albums from the index (instant); songs from the server.
-        const artists = idx.artists.filter((x) => fold(x.name).includes(f)).slice(0, 18);
+        const artists = idx.artists.filter((x) => fold(x.name).includes(f)).slice(0, only ? 120 : 18);
         const albums = idx.all.filter((a) => fold(a.name).includes(f) || fold(a.artist).includes(f))
-            .sort((a, b) => (b.real - a.real) || a.sort.localeCompare(b.sort)).slice(0, 24);
+            .sort((a, b) => (b.real - a.real) || a.sort.localeCompare(b.sort)).slice(0, only ? 120 : 24);
         const draw = (songs) => {
             if (M.searchQ !== q) return;
             const parts = [];
-            if (artists.length && want('artists')) parts.push(shelf('Artists', artists.map(artistCard).join('')));
-            if (albums.length && want('albums')) parts.push(shelf('Albums', albums.map((a) => albumCard(a)).join('')));
+            if (artists.length && want('artists')) parts.push(block('Artists', artists.map(artistCard).join('')));
+            if (albums.length && want('albums')) parts.push(block('Albums', albums.map((a) => albumCard(a)).join('')));
             if (songs && songs.length && want('songs')) parts.push(`<section class="tnm-shelf"><h2 class="tnm-h2">Songs</h2>${songList('search', songs)}</section>`);
             if (!parts.length) parts.push(songs ? `<div class="tnm-empty">Nothing matches "${esc(q)}".</div>` : '');
             out.innerHTML = parts.join('');
@@ -636,12 +665,21 @@
         const spot = spotlightPick(idx, day);
         if (spot) parts.push(spotlightHtml(spot));
         parts.push(shelf('Playlists', newPlaylistCard() + idx.playlists.slice(0, ROW_CARDS).map(playlistCard).join(''), { more: idx.playlists.length > ROW_CARDS ? `${ROUTE}/shelf?key=playlists` : '' }));
-        const row = (s) => {
-            const albums = shuffle(s.albums, rng(s.key + day));
-            return shelf(s.title, albums.slice(0, ROW_CARDS).map((a) => albumCard(a)).join(''), { more: s.albums.length > ROW_CARDS ? `${ROUTE}/shelf?key=${encodeURIComponent(s.key)}` : '' });
+        // Album shelves take turns at four shapes, and a round row of artists follows the
+        // first one, so square, big, circle, list and wide alternate down the page.
+        const row = (s, kind) => {
+            const albums = shuffle(s.albums, rng(s.key + day)).slice(0, kind === 'lines' ? ROW_CARDS + 2 : kind === 'wide' ? 16 : ROW_CARDS);
+            const card = kind === 'wide' ? wideCard : kind === 'lines' ? lineCard : (a) => albumCard(a);
+            return shelf(s.title, albums.map(card).join(''), { kind, more: s.albums.length > albums.length ? `${ROUTE}/shelf?key=${encodeURIComponent(s.key)}` : '' });
         };
-        idx.decades.forEach((s) => parts.push(row(s)));
-        shuffle(idx.mixed, rng('mixed' + day)).slice(0, DAILY_SHELVES).forEach((s) => parts.push(row(s)));
+        const rows = idx.decades.concat(shuffle(idx.mixed, rng('mixed' + day)).slice(0, DAILY_SHELVES));
+        rows.forEach((s, i) => {
+            parts.push(row(s, SHELF_KINDS[i % SHELF_KINDS.length]));
+            if (i === 0) {
+                const faces = shuffle(idx.artists.filter((x) => x.tag), rng('artists' + day)).slice(0, ROW_CARDS);
+                if (faces.length >= SHELF_MIN) parts.push(shelf('Artists', faces.map(artistCard).join(''), { kind: 'artists' }));
+            }
+        });
         // The Albums / Artists switch is the section's heading: an "A to Z" title said nothing
         // the letter bar under it doesn't already say.
         parts.push(`<section class="tnm-az" id="tnm-az"><div class="tnm-az-head" role="group" aria-label="All music by">

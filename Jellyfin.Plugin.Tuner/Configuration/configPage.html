@@ -94,6 +94,18 @@
                             <span>Mix up artists in Recently Added in Music (at most 3 albums each)</span>
                         </label>
                     </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="MovieCarousel" />
+                            <span>Show Recently Added in movie libraries as a carousel (bigger poster in the middle, one step at a time)</span>
+                        </label>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="ArrangeHomeRows" />
+                            <span>Alternate home rows by shape (wide pictures, posters, squares) instead of Jellyfin's order</span>
+                        </label>
+                    </div>
                     <div class="fieldDescription">Changes show up after a page reload.</div>
 
                     <h2>Everywhere</h2>
@@ -137,6 +149,13 @@
                             <input is="emby-checkbox" type="checkbox" id="HideCollectionsLibrary" />
                             <span>Keep the Collections library out of everyone's My Media</span>
                         </label>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="LibrariesOpenOnGenres" />
+                            <span>Open movie and show libraries on their Genres tab</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">For accounts that haven't picked a default tab in Settings &gt; Home. Checked daily, so new accounts get it too.</div>
                     </div>
                     <div class="inputContainer">
                         <input is="emby-input" type="number" id="ShuffleLibraryTileDays" label="Days between new library tile pictures" min="0" max="365" />
@@ -375,8 +394,11 @@
                         page.querySelector('#DisableInjection').checked = !!config.DisableInjection;
                         page.querySelector('#RotateLatestRows').checked = config.RotateLatestRows !== false;
                         page.querySelector('#MixMusicArtists').checked = config.MixMusicArtists !== false;
+                        page.querySelector('#MovieCarousel').checked = config.MovieCarousel !== false;
+                        page.querySelector('#ArrangeHomeRows').checked = config.ArrangeHomeRows !== false;
                         page.querySelector('#RotateSeconds').value = config.RotateSeconds || 120;
                         page.querySelector('#HideCollectionsLibrary').checked = config.HideCollectionsLibrary !== false;
+                        page.querySelector('#LibrariesOpenOnGenres').checked = config.LibrariesOpenOnGenres !== false;
                         page.querySelector('#SmoothScrolling').checked = !!config.SmoothScrolling;
                         page.querySelector('#SmoothIgnoreReducedMotion').checked = !!config.SmoothIgnoreReducedMotion;
                         page.querySelector('#ShortUpNext').checked = !!config.ShortUpNext;
@@ -415,8 +437,11 @@
                         config.DisableInjection = page.querySelector('#DisableInjection').checked;
                         config.RotateLatestRows = page.querySelector('#RotateLatestRows').checked;
                         config.MixMusicArtists = page.querySelector('#MixMusicArtists').checked;
+                        config.MovieCarousel = page.querySelector('#MovieCarousel').checked;
+                        config.ArrangeHomeRows = page.querySelector('#ArrangeHomeRows').checked;
                         config.RotateSeconds = Math.max(20, parseInt(page.querySelector('#RotateSeconds').value, 10) || 120);
                         config.HideCollectionsLibrary = page.querySelector('#HideCollectionsLibrary').checked;
+                        config.LibrariesOpenOnGenres = page.querySelector('#LibrariesOpenOnGenres').checked;
                         config.SmoothScrolling = page.querySelector('#SmoothScrolling').checked;
                         config.SmoothIgnoreReducedMotion = page.querySelector('#SmoothIgnoreReducedMotion').checked;
                         config.ShortUpNext = page.querySelector('#ShortUpNext').checked;

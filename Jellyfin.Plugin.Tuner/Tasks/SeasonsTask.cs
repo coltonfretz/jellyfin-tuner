@@ -21,7 +21,7 @@ public class SeasonsTask : IScheduledTask
 
     public string Key => "TunerSeasons";
 
-    public string Description => "Shares seasonal playlists in season, keeps the Collections library out of My Media, and redraws library tiles every few days.";
+    public string Description => "Shares seasonal playlists in season, keeps the Collections library out of My Media, opens movie and show libraries on Genres, and redraws library tiles every few days.";
 
     public string Category => "Jellyfin-Tuned";
 

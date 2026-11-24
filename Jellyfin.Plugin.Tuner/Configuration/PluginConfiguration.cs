@@ -67,6 +67,20 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool MixMusicArtists { get; set; } = true;
 
     /// <summary>
+    /// Recently Added in each movie library becomes a carousel: the middle poster is bigger
+    /// and it steps one poster at a time. WHY (Fretzflix, 2026-11-24): the whole-row slide
+    /// was easy to miss and felt abrupt. Needs <see cref="RotateLatestRows"/>.
+    /// </summary>
+    public bool MovieCarousel { get; set; } = true;
+
+    /// <summary>
+    /// Home rows take turns by shape (wide pictures, posters, squares, carousel) instead of
+    /// Jellyfin's fixed order, which opened with four rows of wide pictures in a row.
+    /// Needs <see cref="RotateLatestRows"/>.
+    /// </summary>
+    public bool ArrangeHomeRows { get; set; } = true;
+
+    /// <summary>
     /// Seasonal sections: a collection that gets its own tile in everyone's My Media between
     /// two dates each year, and disappears the rest of the year. "Name=MM-DD..MM-DD" pairs
     /// separated by semicolons, both dates included; a range may wrap past New Year
@@ -83,6 +97,15 @@ public class PluginConfiguration : BasePluginConfiguration
     /// own tile instead.
     /// </summary>
     public bool HideCollectionsLibrary { get; set; } = true;
+
+    /// <summary>
+    /// Movie and show libraries open on their Genres tab for every account that hasn't picked
+    /// a default tab itself (Settings > Home > each library's "Default screen"). WHY
+    /// (Fretzflix, 2026-11-24): one big poster wall was hard to browse; genre rows break the
+    /// pool up. Per-user setting, so the daily task covers new accounts; a choice someone
+    /// made is never changed.
+    /// </summary>
+    public bool LibrariesOpenOnGenres { get; set; } = true;
 
     /// <summary>
     /// Mouse-wheel scrolling glides and eases out (smooth.js) instead of jumping a notch at a

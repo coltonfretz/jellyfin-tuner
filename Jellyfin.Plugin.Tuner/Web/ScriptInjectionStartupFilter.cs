@@ -125,7 +125,9 @@ public class ScriptInjectionStartupFilter : IStartupFilter
                     // document.currentScript, so no extra request before the rows can start.
                     var seconds = Math.Max(20, config.RotateSeconds);
                     var mix = config.MixMusicArtists ? "1" : "0";
-                    tags += $"<script src=\"../Tuner/homerows.js?v={v}\" data-seconds=\"{seconds}\" data-mix=\"{mix}\" defer></script>";
+                    var carousel = config.MovieCarousel ? "1" : "0";
+                    var arrange = config.ArrangeHomeRows ? "1" : "0";
+                    tags += $"<script src=\"../Tuner/homerows.js?v={v}\" data-seconds=\"{seconds}\" data-mix=\"{mix}\" data-carousel=\"{carousel}\" data-arrange=\"{arrange}\" defer></script>";
                 }
                 if (config?.MusicPage == true)
                 {
