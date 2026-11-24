@@ -345,7 +345,7 @@ public class BooksService
                 Subtitle = b["subtitle"]?.ToString(),
                 Authors = AuthorsOf(contributions, null),
                 AuthorId = MainAuthorId(contributions),
-                Description = b["description"]?.ToString(),
+                Description = PlainText(b["description"]?.ToString()),
                 Pages = Int(b["pages"]),
                 Year = Int(b["release_year"]),
                 Rating = RoundRating(b["rating"]),
@@ -479,6 +479,21 @@ public class BooksService
 
     private static double? Dbl(JsonNode? n) =>
         n is JsonValue v && v.TryGetValue<double>(out var d) ? d : Int(n);
+
+    /// <summary>
+    /// Descriptions as plain text: some come with HTML (&lt;b&gt;, &lt;br&gt;, &amp;amp;), which the page
+    /// would show literally (break-ui pass, 2026-11-24). Line breaks stay paragraphs.
+    /// </summary>
+    private static string? PlainText(string? s)
+    {
+        if (string.IsNullOrEmpty(s))
+        {
+            return s;
+        }
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"<\s*(br|/p|/div)\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"<[^>]{1,200}>", string.Empty);
+        return System.Net.WebUtility.HtmlDecode(s).Trim();
+    }
 
     private static double? RoundRating(JsonNode? n)
     {

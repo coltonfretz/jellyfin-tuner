@@ -267,7 +267,7 @@
     }
 
     function cardHtml(b) {
-        const series = b.series ? `${b.series}${b.seriesPosition ? ` #${b.seriesPosition}` : ''}` : '';
+        const series = b.series ? `${b.series}${b.seriesPosition && b.seriesPosition !== '0' ? ` #${b.seriesPosition}` : ''}` : '';   // #0 is a prequel: no number
         return `<a class="tnr-bk-card" href="${ROUTE}/${b.id}" data-id="${b.id}" title="${esc(b.title)}${b.authors ? ` by ${esc(b.authors)}` : ''}">
             <div class="tnr-bk-cover${b.cover ? '' : ' none'}">${coverHtml(b)}${badgeHtml(B.states[b.id])}</div>
             <div class="tnr-bk-title">${esc(b.title)}</div>
@@ -278,7 +278,7 @@
     function badgeHtml(st) {
         if (!st) return '';
         if (st.state === 'have') return '<span class="tnr-bk-badge have" title="In the library"><span class="material-icons" aria-hidden="true">check</span></span>';
-        if (st.state === 'downloading') return `<span class="tnr-bk-badge" title="Downloading">${Math.round((st.progress || 0) * 100)}%</span>`;
+        if (st.state === 'downloading') return `<span class="tnr-bk-badge" title="Downloading">${Math.floor((st.progress || 0) * 100)}%</span>`;
         if (st.state === 'problem') return '<span class="tnr-bk-badge bad" title="Stuck">!</span>';
         return '<span class="tnr-bk-badge" title="On its way"><span class="material-icons" aria-hidden="true">schedule</span></span>';
     }
@@ -316,8 +316,11 @@
         const b = data.book;
         B.book = { id, read: data.read, title: b.title };
         if (data.state) B.states[id] = data.state; else delete B.states[id];
-        const meta = [b.year, b.pages ? `${num(b.pages)} pages` : '',
-            b.rating ? `<span class="tnr-bk-stars" aria-label="Rated ${b.rating} out of 5">★ ${b.rating}</span> <span class="tnr-bk-dim">(${num(b.ratings)} ratings)</span>` : '']
+        // break-ui pass (2026-11-24): "1 ratings" / "1 pages", and 4.0 came out as "★ 4" beside "★ 4.3".
+        const plural = (n, word) => `${num(n)} ${word}${n === 1 ? '' : 's'}`;
+        const stars = b.rating ? Number(b.rating).toFixed(1) : '';
+        const meta = [b.year, b.pages ? plural(b.pages, 'page') : '',
+            b.rating ? `<span class="tnr-bk-stars" aria-label="Rated ${stars} out of 5">★ ${stars}</span> <span class="tnr-bk-dim">(${plural(b.ratings, 'rating')})</span>` : '']
             .filter(Boolean).join('<span class="tnr-bk-dot">·</span>');
         const paras = String(b.description || '').split(/\n\s*\n|\n/).map((p) => p.trim()).filter(Boolean);
         body.innerHTML = `<div class="tnr-bk-detail">
@@ -330,7 +333,7 @@
                     ${b.authors ? `<div class="tnr-bk-by">by ${b.authorId
                         ? `<a href="${ROUTE}/author/${b.authorId}" data-go>${esc(b.authors)}</a>`
                         : `<a href="#" data-find="${esc(b.authors.split(' and ')[0].split(',')[0])}">${esc(b.authors)}</a>`}</div>` : ''}
-                    ${b.series ? `<div class="tnr-bk-series">${b.seriesPosition ? `Book ${esc(b.seriesPosition)} of ` : 'Part of '}<a href="#" data-find="${esc(b.series)}">${esc(b.series)}</a></div>` : ''}
+                    ${b.series ? `<div class="tnr-bk-series">${b.seriesPosition === '0' ? 'Prequel to ' : b.seriesPosition ? `Book ${esc(b.seriesPosition)} of ` : 'Part of '}<a href="#" data-find="${esc(b.series)}">${esc(b.series)}</a></div>` : ''}
                     ${meta ? `<div class="tnr-bk-meta">${meta}</div>` : ''}
                     <div class="tnr-bk-action" aria-live="polite"></div>
                     ${b.genres && b.genres.length ? `<div class="tnr-bk-genres">${b.genres.map(esc).join(' · ')}</div>` : ''}
@@ -380,7 +383,7 @@
                 // A download can be the wrong book (or a bad file) even after it's in.
                 + '<button type="button" class="tnr-bk-link" data-do="replace">Wrong book? Replace it</button>';
         } else if (state === 'downloading' || state === 'problem') {
-            const pct = Math.round((st.progress || 0) * 100);
+            const pct = Math.floor((st.progress || 0) * 100);   // down: 99.9% isn't done
             html = state === 'problem'
                 ? `<div class="tnr-bk-status bad"><span class="material-icons" aria-hidden="true">error_outline</span>Stuck: ${esc(st.message || 'the download has a problem')}</div>`
                 : `<div class="tnr-bk-status"><span class="material-icons tnr-bk-spin" aria-hidden="true">downloading</span>Downloading, ${pct}%</div>

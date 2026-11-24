@@ -650,7 +650,7 @@ html.tnr-gliding .mainAnimatedPages { pointer-events: none; }
 @media (hover: none) and (pointer: coarse) { .tnr-bk-arrow { display: none; } }
 
 .tnr-bk-shelf { margin-bottom: 2em; }
-.tnr-bk-shelf h2, .tnr-bk-head { font-size: 1.2em; font-weight: 600; margin: 0 0 .7em; }
+.tnr-bk-shelf h2, .tnr-bk-head { font-size: 1.2em; font-weight: 600; margin: 0 0 .7em; overflow-wrap: anywhere; }
 .tnr-bk-row { display: flex; overflow-x: auto; padding: .3em .2em 1em; margin: 0 -.2em; scroll-snap-type: x proximity; scrollbar-width: thin; }
 .tnr-bk-row > .tnr-bk-card { flex: 0 0 var(--tnr-bk-card); width: var(--tnr-bk-card); margin-right: 1em; scroll-snap-align: start; }
 .tnr-bk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5em, 1fr)); grid-gap: 1.6em 1.1em; }
@@ -664,9 +664,9 @@ html.tnr-gliding .mainAnimatedPages { pointer-events: none; }
 /* The plain cover sits under the picture and shows when there's none or it fails. */
 .tnr-bk-plain { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center;
   padding: .8em; text-align: center; background: linear-gradient(160deg, #3a2d55, #1c1830); color: #ece6f7; }
-.tnr-bk-plain span { font-weight: 600; font-size: .92em; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; }
+.tnr-bk-plain span { font-weight: 600; overflow-wrap: anywhere; font-size: .92em; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; }
 .tnr-bk-plain small { margin-top: .6em; opacity: .7; font-size: .75em; }
-.tnr-bk-title { margin-top: .55em; font-size: .9em; font-weight: 600; line-height: 1.25; overflow: hidden;
+.tnr-bk-title { margin-top: .55em; overflow-wrap: anywhere; font-size: .9em; font-weight: 600; line-height: 1.25; overflow: hidden;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .tnr-bk-author { margin-top: .2em; font-size: .8em; color: var(--tnr-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tnr-bk-badge { position: absolute; z-index: 2; top: .4em; right: .4em; min-width: 1.7em; height: 1.7em; padding: 0 .35em; box-sizing: border-box;
@@ -684,7 +684,8 @@ html.tnr-gliding .mainAnimatedPages { pointer-events: none; }
 .tnr-bk-bigcover { position: relative; flex: 0 0 15em; width: 15em; padding-top: 22.5em; margin-right: 2.2em; border-radius: 8px;
   overflow: hidden; background: var(--tnr-raise); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
 .tnr-bk-info { flex: 1; min-width: 0; }
-.tnr-bk-info h1 { margin: 0; font-size: 2em; line-height: 1.15; }
+/* Long words (a pasted link, a German compound) break instead of pushing the page sideways on a phone (break-ui, 2026-11-24). */
+.tnr-bk-info h1 { margin: 0; font-size: 2em; line-height: 1.15; overflow-wrap: anywhere; }
 .tnr-bk-sub { margin-top: .3em; font-size: 1.1em; color: var(--tnr-dim); }
 .tnr-bk-by { margin-top: .7em; font-size: 1.05em; }
 .tnr-bk-series { margin-top: .3em; color: var(--tnr-dim); }
@@ -721,7 +722,7 @@ html.tnr-gliding .mainAnimatedPages { pointer-events: none; }
 .tnr-bk-genres { color: var(--tnr-dim); font-size: .85em; }
 .tnr-bk-genres span { display: inline-block; margin: 0 .4em .4em 0; padding: .25em .75em; border-radius: 999px; font-size: .8em;
   background: var(--tnr-panel); border: 1px solid var(--tnr-line); color: var(--tnr-dim); }
-.tnr-bk-desc { max-width: 44em; line-height: 1.6; color: #d4d8dd; max-height: 12em; overflow: hidden; position: relative; }
+.tnr-bk-desc { max-width: 44em; overflow-wrap: anywhere; line-height: 1.6; color: #d4d8dd; max-height: 12em; overflow: hidden; position: relative; }
 .tnr-bk-desc p { margin: 0 0 .8em; }
 /* Faded with a mask, not a gradient overlay, so it matches whatever background the theme paints. */
 .tnr-bk-desc.cut:not(.open) { -webkit-mask-image: linear-gradient(#000 65%, transparent); mask-image: linear-gradient(#000 65%, transparent); }
