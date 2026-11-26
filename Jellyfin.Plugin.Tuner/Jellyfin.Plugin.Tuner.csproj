@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.Tuner</RootNamespace>
     <AssemblyName>Jellyfin.Plugin.Tuner</AssemblyName>
-    <AssemblyVersion>1.0.17.0</AssemblyVersion>
+    <AssemblyVersion>1.0.17.1</AssemblyVersion>
     <FileVersion>1.0.8.1</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

@@ -2883,11 +2883,29 @@
     // Boot
     // =====================================================================
 
+    // WHY: Jellyfin 12's layout (the one with the "Movies" / "Shows" view menu) picks a library's
+    // first tab with userSettings.get('landing-<id>', false), and that false means "this browser
+    // only": it reads localStorage "<userId>-landing-<id>" and never the server copy. So the
+    // account's choice (Settings > Home > Default screen, or the Genres default the plugin's
+    // upkeep writes) only reached the browser it was made in. Copy the server's values down.
+    // Settings saves to both places, so the server copy is always the latest choice.
+    async function syncLandingTabs() {
+        try {
+            const uid = ApiClient.getCurrentUserId();
+            const p = await api(`DisplayPreferences/usersettings?userId=${uid}&client=emby`);
+            const prefs = (p && p.CustomPrefs) || {};
+            for (const [k, v] of Object.entries(prefs)) {
+                if (k.startsWith('landing-') && v) localStorage.setItem(`${uid}-${k}`, v);
+            }
+        } catch (e) { /* the library opens on Jellyfin's own default */ }
+    }
+
     function boot() {
         if (!window.ApiClient || !ApiClient.getCurrentUserId || !ApiClient.getCurrentUserId()) {
             setTimeout(boot, 500);
             return;
         }
+        syncLandingTabs();
         if (MUSIC_ON) document.body.classList.add('tnr-music-on');
         if (TV_ON || MOVIES_ON) loadSections();
         injectNav();
